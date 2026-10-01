@@ -1,4 +1,4 @@
-BINARY_NAME := camtap
+BINARY_NAME := camstop
 MODULE      := github.com/smford/camstop
 VERSION     ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT      ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
@@ -9,24 +9,27 @@ LDFLAGS     := -s -w \
                -X main.commit=$(COMMIT) \
                -X main.date=$(DATE)
 
-.PHONY: all build clean test lint run release-snapshot tag-patch tag-minor tag-major
+.PHONY: all build clean test lint run scan release-snapshot tag-patch tag-minor tag-major
 
 all: build
 
 build:
-	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME) ./cmd/camtap
+	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME) ./cmd/camstop
 
 build-linux-arm64:
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME)-linux-arm64 ./cmd/camtap
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME)-linux-arm64 ./cmd/camstop
 
 build-linux-amd64:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME)-linux-amd64 ./cmd/camtap
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME)-linux-amd64 ./cmd/camstop
 
 test:
 	go test -v -race ./...
 
+scan: build
+	./$(BINARY_NAME) --scan
+
 clean:
-	rm -f $(BINARY_NAME) $(BINARY_NAME)-* coverage.out
+	rm -f $(BINARY_NAME) $(BINARY_NAME)-* camtap camtap-* coverage.out
 
 run: build
 	./$(BINARY_NAME) -config config.example.yaml -log-level debug

@@ -25,7 +25,7 @@ var (
 )
 
 func main() {
-	configPath := flag.String("config", "camtap.yaml", "Path to configuration file")
+	configPath := flag.String("config", "camstop.yaml", "Path to configuration file")
 	showVersion := flag.Bool("version", false, "Print version information and exit")
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	scanNetwork := flag.Bool("scan", false, "Scan local network for ONVIF and RTSP cameras")
@@ -34,15 +34,17 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("camtap version %s (commit: %s, built at: %s)\n", version, commit, date)
+		fmt.Printf("camstop version %s (commit: %s, built at: %s)\n", version, commit, date)
 		os.Exit(0)
 	}
 
+	// Network scanning mode
 	if *scanNetwork {
 		runScan(*scanTimeout, *genConfig)
 		os.Exit(0)
 	}
 
+	// Daemon mode
 	runDaemon(*configPath, *logLevel)
 }
 
@@ -67,7 +69,7 @@ func runScan(timeout time.Duration, generateConfig bool) {
 		if generateConfig {
 			fmt.Println(discovery.GenerateSampleConfig(devices))
 		} else {
-			fmt.Println("Tip: Run with --generate-config to generate ready-to-use YAML configuration.")
+			fmt.Println("Tip: Run 'camstop --scan --generate-config' to generate ready-to-use YAML configuration.")
 		}
 	}
 }
@@ -88,15 +90,16 @@ func runDaemon(configPath, logLevelStr string) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 	slog.SetDefault(logger)
 
-	slog.Info("starting camtap edge daemon",
+	slog.Info("starting camstop edge daemon",
 		"version", version,
 		"commit", commit,
 		"built_at", date,
 	)
 
+	// Fallback to camtap.yaml or config.yaml if camstop.yaml doesn't exist
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		if _, err := os.Stat("camstop.yaml"); err == nil {
-			configPath = "camstop.yaml"
+		if _, err := os.Stat("camtap.yaml"); err == nil {
+			configPath = "camtap.yaml"
 		} else if _, err := os.Stat("config.yaml"); err == nil {
 			configPath = "config.yaml"
 		}
@@ -153,5 +156,5 @@ func runDaemon(configPath, logLevelStr string) {
 		slog.Error("HTTP server shutdown error", "err", err)
 	}
 
-	slog.Info("camtap daemon terminated cleanly")
+	slog.Info("camstop daemon terminated cleanly")
 }

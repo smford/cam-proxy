@@ -66,6 +66,35 @@ flowchart TD
 
 ---
 
+## Network Camera Discovery (`--scan`)
+
+`camstop` can automatically scan your local network interfaces for ONVIF cameras (via WS-Discovery multicast `239.255.255.250:3702`) and active RTSP video streams (port 554/8554 sweep):
+
+```bash
+# Scan local network
+./camstop --scan
+
+# Scan with custom timeout
+./camstop --scan --scan-timeout 2s
+
+# Scan and generate ready-to-use YAML configuration block
+./camstop --scan --generate-config >> camstop.yaml
+```
+
+**Example Output:**
+```text
+Scanning local network for ONVIF and RTSP cameras (timeout: 3s)...
+
+IP ADDRESS       TYPE       MANUFACTURER   MODEL / NAME           RTSP / ONVIF ENDPOINT
+------------------------------------------------------------------------------------------------
+192.168.1.12     ONVIF+RTSP -              C216                   rtsp://192.168.1.12:554/live
+192.168.1.113    ONVIF      -              C720                   http://192.168.1.113:2020/onvif...
+------------------------------------------------------------------------------------------------
+Discovered 2 camera(s) on local network.
+```
+
+---
+
 ## Quick Start
 
 ### 1. Build
@@ -78,17 +107,19 @@ Cross-compile for edge gateways (e.g., Raspberry Pi 4/5):
 make build-linux-arm64
 ```
 
-### 2. Configure
-Copy [config.example.yaml](file:///Users/asc/git/camstop/config.example.yaml) to `camtap.yaml`:
+### 2. Auto-Discover or Configure
+Auto-generate configuration from discovered cameras:
 ```bash
-cp config.example.yaml camtap.yaml
+./camstop --scan --generate-config > camstop.yaml
 ```
-
-Edit your camera IP addresses, ONVIF credentials, and RTSP stream URLs.
+Or copy [config.example.yaml](file:///Users/asc/git/camstop/config.example.yaml):
+```bash
+cp config.example.yaml camstop.yaml
+```
 
 ### 3. Run
 ```bash
-./camtap -config camtap.yaml -log-level debug
+./camstop -config camstop.yaml -log-level debug
 ```
 
 ---

@@ -1,4 +1,6 @@
 # Binaries
+/camstop
+/camstop-*
 /camtap
 /camtap-*
 *.exe

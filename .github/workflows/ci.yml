@@ -27,4 +27,4 @@ jobs:
         run: go test -v -race -covermode=atomic -coverprofile=coverage.out ./...
 
       - name: Build binary
-        run: CGO_ENABLED=0 go build -v -o camtap ./cmd/camtap
+        run: CGO_ENABLED=0 go build -v -o camstop ./cmd/camstop
