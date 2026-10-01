@@ -11,42 +11,53 @@
 
 ## Architecture Overview
 
-```
-                      +---------------------------------------+
-                      |         HTTP Clients (REST)           |
-                      +---------------------------------------+
-                                          |
-                                          v [Go 1.22+ net/http]
-+-----------------------------------------------------------------------------+
-|                                camtap daemon                                |
-|                                                                             |
-|   +-----------------------+   +--------------------+   +----------------+   |
-|   |  GET .../snapshot     |   |   POST .../ptz     |   |   GET /healthz |   |
-|   +-----------------------+   +--------------------+   +----------------+   |
-|               |                         |                                   |
-|               v                         v                                   |
-|   +---------------------------------------------------------------------+   |
-|   |                         Camera Manager                              |   |
-|   +---------------------------------------------------------------------+   |
-|               |                                       |                     |
-|               v                                       v                     |
-|   +-----------------------+               +-----------------------+         |
-|   |  ONVIF Client (SOAP)  |               |      RTSP Client      |         |
-|   |  - WS-Security Auth   |               |  (bluenviron/gortsplib)|        |
-|   |  - HTTP Digest Auth   |               |  - MJPEG / RTP depack |         |
-|   |  - PullPoint Poller   |               |  - Keyframe detector  |         |
-|   +-----------------------+               +-----------------------+         |
-|               |                                       |                     |
-+---------------|---------------------------------------|---------------------+
-                |                                       |
-                | PullPoint Events                      |
-                v                                       |
-     +--------------------+                             |
-     |   MQTT Publisher   |                             |
-     +--------------------+                             |
-                |                                       |
-                v                                       v
-        [ MQTT Broker ]                        [ IP Camera (RTSP/ONVIF) ]
+```mermaid
+flowchart TD
+    subgraph Clients["Clients"]
+        HTTPClients["HTTP Clients / Frontends"]
+    end
+
+    subgraph Daemon["camtap daemon"]
+        subgraph API["Go 1.22+ net/http API"]
+            SnapshotEP["GET /api/v1/cameras/{id}/snapshot"]
+            PTZEP["POST /api/v1/cameras/{id}/ptz"]
+            HealthzEP["GET /healthz"]
+        end
+
+        Manager["Camera Manager"]
+
+        subgraph Protocols["Protocol Engines"]
+            ONVIF["ONVIF Client (SOAP)
+            • WS-Security Auth
+            • HTTP Digest Auth
+            • PullPoint Poller"]
+
+            RTSP["RTSP Client (gortsplib)
+            • MJPEG / RTP Depacketizer
+            • Keyframe Detector"]
+        end
+
+        MQTTPub["MQTT Publisher"]
+    end
+
+    subgraph External["External Infrastructure"]
+        Broker["MQTT Broker"]
+        Camera["IP Camera (ONVIF / RTSP)"]
+    end
+
+    HTTPClients -->|REST / HTTP| API
+    SnapshotEP --> Manager
+    PTZEP --> Manager
+    HealthzEP -.-> Manager
+
+    Manager --> ONVIF
+    Manager --> RTSP
+
+    ONVIF -->|SOAP PTZ / HTTP Digest Snapshot| Camera
+    RTSP -->|RTSP / RTP Video Stream| Camera
+
+    ONVIF -->|Normalized Events| MQTTPub
+    MQTTPub -->|Publish JSON Alerts| Broker
 ```
 
 ### Memory Footprint & Resource Strategy
