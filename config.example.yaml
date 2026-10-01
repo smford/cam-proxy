@@ -1,0 +1,51 @@
+# camtap configuration specification
+# Lightweight edge camera gateway for snapshots, PTZ, and ONVIF-to-MQTT events.
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  read_timeout: 10s
+  write_timeout: 15s
+
+mqtt:
+  enabled: true
+  broker: "tcp://192.168.1.50:1883"
+  client_id: "camtap-daemon"
+  username: "mqtt_user"
+  password: "mqtt_password"
+  topic_prefix: "camtap/events"
+  keep_alive: 30s
+
+discovery:
+  enabled: false
+  interval: 5m
+
+cameras:
+  front_door:
+    name: "Front Door Porch"
+    address: "192.168.1.101:80"                      # ONVIF SOAP endpoint (host:port or IP)
+    rtsp_url: "rtsp://admin:secret@192.168.1.101:554/h264Preview_01_main"
+    onvif_username: "admin"
+    onvif_password: "CameraPassword123"
+    snapshot_method: "auto"                          # Options: "auto", "onvif", "rtsp"
+    pull_events: true                                # Subscribe to ONVIF PullPoint notifications
+    profile_token: ""                                # Optional; defaults to first active media profile
+
+  backyard_ptz:
+    name: "Backyard PTZ"
+    address: "192.168.1.102:80"
+    rtsp_url: "rtsp://admin:secret@192.168.1.102:554/onvif1"
+    onvif_username: "admin"
+    onvif_password: "CameraPassword123"
+    snapshot_method: "onvif"
+    pull_events: true
+    profile_token: "Profile_1"
+
+  garage_substream:
+    name: "Garage Substream (MJPEG/RTSP)"
+    address: "192.168.1.103:80"
+    rtsp_url: "rtsp://admin:secret@192.168.1.103:554/mjpeg"
+    onvif_username: "admin"
+    onvif_password: "CameraPassword123"
+    snapshot_method: "rtsp"
+    pull_events: false

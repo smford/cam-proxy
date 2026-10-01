@@ -1,0 +1,27 @@
+# Binaries
+/camtap
+/camtap-*
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test and coverage artifacts
+*.test
+*.out
+coverage.html
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS artifacts
+.DS_Store
+
+# Local configs and builds
+dist/
+build/
+camtap.local.yaml
