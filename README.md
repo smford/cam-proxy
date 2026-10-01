@@ -95,6 +95,45 @@ Discovered 2 camera(s) on local network.
 
 ---
 
+## Interactive Camera Manager (TUI)
+
+Launch a full terminal user interface to browse detected cameras, inspect live details, configure credentials, test connections, and save changes:
+
+```bash
+# Launch interactive TUI
+./camstop --tui
+
+# Or via make
+make tui
+```
+
+```text
+ CAMSTOP CAMERA MANAGER   Config: camstop.yaml
+
+  [1. Configured (2)]   2. Discovered (2)   [Tab] switch view
+
+    CAMERA ID            NAME                     ONVIF ADDRESS          SNAPSHOT
+    ────────────────────────────────────────────────────────────────────────────────
+  ▶ front_door           Front Porch Tapo C216    192.168.1.12:2020      auto
+    driveway             Driveway PTZ             192.168.1.113:2020     auto
+
+
+  ● Press 's' to scan network, 'a' to add, 'e' to edit, 'w' to save, 'q' to quit
+  [s] Scan LAN  [a] Add  [e/Enter] Edit  [d] Delete  [t] Test  [w] Write File  [q] Quit
+```
+
+### TUI Keybindings:
+- **`[Tab]`**: Switch between **Configured** and **Discovered** cameras.
+- **`[s]`**: Broadcast network WS-Discovery & RTSP sweep to find nearby cameras.
+- **`[a]`**: Add camera (pre-populates with highlighted camera details when on Discovered tab).
+- **`[e]` / `[Enter]`**: Edit highlighted camera credentials, endpoints, and event options.
+- **`[d]`**: Delete selected camera from configuration.
+- **`[t]`**: Test live camera connectivity and snapshot capture.
+- **`[w]`**: Save/write updated configuration directly to `camstop.yaml`.
+- **`[q]` / `[Ctrl+C]`**: Quit TUI.
+
+---
+
 ## Quick Start
 
 ### 1. Build

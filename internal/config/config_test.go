@@ -73,3 +73,32 @@ cameras:
 		t.Errorf("expected pull_events true")
 	}
 }
+
+func TestSaveConfig(t *testing.T) {
+	tmpFile, err := os.CreateTemp("", "camstop-save-*.yaml")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	tmpFile.Close()
+
+	cfg := config.DefaultConfig()
+	cfg.Cameras["test_cam"] = config.CameraConfig{
+		ID:      "test_cam",
+		Name:    "Test Camera",
+		Address: "192.168.1.99:80",
+	}
+
+	if err := config.Save(tmpFile.Name(), cfg); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+
+	loaded, err := config.Load(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("failed to reload saved config: %v", err)
+	}
+
+	if loaded.Cameras["test_cam"].Name != "Test Camera" {
+		t.Errorf("expected name 'Test Camera', got %q", loaded.Cameras["test_cam"].Name)
+	}
+}

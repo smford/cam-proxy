@@ -28,6 +28,9 @@ test:
 scan: build
 	./$(BINARY_NAME) --scan
 
+tui: build
+	./$(BINARY_NAME) --tui
+
 clean:
 	rm -f $(BINARY_NAME) $(BINARY_NAME)-* camtap camtap-* coverage.out
 

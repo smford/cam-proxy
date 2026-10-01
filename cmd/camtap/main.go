@@ -10,11 +10,13 @@ import (
 	"syscall"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/smford/camstop/internal/api"
 	"github.com/smford/camstop/internal/camera"
 	"github.com/smford/camstop/internal/config"
 	"github.com/smford/camstop/internal/discovery"
 	"github.com/smford/camstop/internal/mqtt"
+	"github.com/smford/camstop/internal/tui"
 )
 
 // Injected by ldflags during build / release
@@ -31,10 +33,16 @@ func main() {
 	scanNetwork := flag.Bool("scan", false, "Scan local network for ONVIF and RTSP cameras")
 	scanTimeout := flag.Duration("scan-timeout", 3*time.Second, "Discovery scan timeout")
 	genConfig := flag.Bool("generate-config", false, "Generate sample YAML config from discovered cameras")
+	startTUI := flag.Bool("tui", false, "Start interactive TUI to manage, discover, and configure cameras")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Printf("camtap version %s (commit: %s, built at: %s)\n", version, commit, date)
+		os.Exit(0)
+	}
+
+	if *startTUI {
+		runTUI(*configPath)
 		os.Exit(0)
 	}
 
@@ -44,6 +52,35 @@ func main() {
 	}
 
 	runDaemon(*configPath, *logLevel)
+}
+
+func runTUI(configPath string) {
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		if _, err := os.Stat("camstop.yaml"); err == nil {
+			configPath = "camstop.yaml"
+		} else if _, err := os.Stat("config.yaml"); err == nil {
+			configPath = "config.yaml"
+		}
+	}
+
+	var cfg *config.Config
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		cfg = config.DefaultConfig()
+	} else {
+		var err error
+		cfg, err = config.Load(configPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading configuration: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	m := tui.New(configPath, cfg)
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error running TUI: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func runScan(timeout time.Duration, generateConfig bool) {

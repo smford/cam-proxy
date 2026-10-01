@@ -104,3 +104,15 @@ func Load(path string) (*Config, error) {
 
 	return cfg, nil
 }
+
+// Save writes the configuration to a YAML file.
+func Save(path string, cfg *Config) error {
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("marshaling config YAML: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("writing config file %q: %w", path, err)
+	}
+	return nil
+}
