@@ -127,13 +127,25 @@ func (c *Camera) Snapshot(ctx context.Context) ([]byte, error) {
 	return nil, ErrNoSnapshotSource
 }
 
+func (c *Camera) resolveProfileToken(ctx context.Context) string {
+	if c.Config.ProfileToken != "" {
+		return c.Config.ProfileToken
+	}
+	if c.onvifDevice != nil {
+		if profiles, err := c.onvifDevice.GetProfiles(ctx); err == nil && len(profiles) > 0 {
+			return profiles[0].Token
+		}
+	}
+	return "profile_1"
+}
+
 // PTZMove sends continuous move velocity command.
 func (c *Camera) PTZMove(ctx context.Context, pan, tilt, zoom float64) error {
 	if c.onvifDevice == nil {
 		return ErrONVIFNotConfigured
 	}
 	return c.onvifDevice.ContinuousMove(ctx, onvif.PTZMoveCommand{
-		ProfileToken: c.Config.ProfileToken,
+		ProfileToken: c.resolveProfileToken(ctx),
 		Pan:          pan,
 		Tilt:         tilt,
 		Zoom:         zoom,
@@ -145,7 +157,7 @@ func (c *Camera) PTZStop(ctx context.Context) error {
 	if c.onvifDevice == nil {
 		return ErrONVIFNotConfigured
 	}
-	return c.onvifDevice.Stop(ctx, c.Config.ProfileToken)
+	return c.onvifDevice.Stop(ctx, c.resolveProfileToken(ctx))
 }
 
 // PTZPreset recalls a preset position.
@@ -154,7 +166,7 @@ func (c *Camera) PTZPreset(ctx context.Context, presetToken string) error {
 		return ErrONVIFNotConfigured
 	}
 	return c.onvifDevice.GotoPreset(ctx, onvif.PTZPresetCommand{
-		ProfileToken: c.Config.ProfileToken,
+		ProfileToken: c.resolveProfileToken(ctx),
 		PresetToken:  presetToken,
 	})
 }
