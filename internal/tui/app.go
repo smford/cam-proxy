@@ -44,11 +44,13 @@ type Model struct {
 	discovered []discovery.DiscoveredDevice
 	discCursor int
 
-	// Form inputs for add/edit
-	editingID   string
-	isNewCam    bool
-	inputs      []textinput.Model
-	focusIndex  int
+	// Form inputs for add/edit (0..5: text inputs, 6: snapshot method, 7: pull events, 8: save button)
+	editingID           string
+	isNewCam            bool
+	inputs              []textinput.Model
+	focusIndex          int
+	snapshotMethodIndex int  // 0: auto, 1: onvif, 2: rtsp
+	pullEventsEnabled   bool // true: Enabled, false: Disabled
 
 	// Status & messaging
 	statusMsg  string
@@ -102,8 +104,6 @@ func (m *Model) initInputs() {
 		"RTSP URL",
 		"ONVIF Username",
 		"ONVIF Password",
-		"Snapshot Method (auto/onvif/rtsp)",
-		"Pull Events (true/false)",
 	}
 
 	m.inputs = make([]textinput.Model, len(labels))
@@ -248,6 +248,8 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) updateEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	const totalFields = 9 // 0..5 text inputs, 6: snapshot method, 7: pull events, 8: save button
+
 	switch msg.String() {
 	case "esc":
 		m.blurAllInputs()
@@ -268,18 +270,36 @@ func (m Model) updateEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "tab", "down":
-		m.inputs[m.focusIndex].Blur()
-		m.focusIndex = (m.focusIndex + 1) % len(m.inputs)
-		return m, m.inputs[m.focusIndex].Focus()
+		m.blurAllInputs()
+		m.focusIndex = (m.focusIndex + 1) % totalFields
+		if m.focusIndex < len(m.inputs) {
+			return m, m.inputs[m.focusIndex].Focus()
+		}
+		return m, nil
 
 	case "shift+tab", "up":
-		m.inputs[m.focusIndex].Blur()
-		m.focusIndex = (m.focusIndex - 1 + len(m.inputs)) % len(m.inputs)
-		return m, m.inputs[m.focusIndex].Focus()
+		m.blurAllInputs()
+		m.focusIndex = (m.focusIndex - 1 + totalFields) % totalFields
+		if m.focusIndex < len(m.inputs) {
+			return m, m.inputs[m.focusIndex].Focus()
+		}
+		return m, nil
 
-	case "enter":
-		if m.focusIndex == len(m.inputs)-1 {
-			// Save form
+	case " ", "space", "left", "right", "h", "l":
+		if m.focusIndex == 6 {
+			// Cycle snapshot method
+			if msg.String() == "left" || msg.String() == "h" {
+				m.snapshotMethodIndex = (m.snapshotMethodIndex - 1 + 3) % 3
+			} else {
+				m.snapshotMethodIndex = (m.snapshotMethodIndex + 1) % 3
+			}
+			return m, nil
+		} else if m.focusIndex == 7 {
+			// Toggle pull events option
+			m.pullEventsEnabled = !m.pullEventsEnabled
+			return m, nil
+		} else if m.focusIndex == 8 && (msg.String() == "space" || msg.String() == " ") {
+			// Trigger save button
 			if err := m.saveForm(); err != nil {
 				m.setStatus(err.Error(), true)
 				return m, nil
@@ -291,14 +311,44 @@ func (m Model) updateEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.setStatus(fmt.Sprintf("Saved camera '%s' in memory (press 'w' to save file)", m.editingID), false)
 			return m, nil
 		}
-		m.inputs[m.focusIndex].Blur()
-		m.focusIndex = (m.focusIndex + 1) % len(m.inputs)
-		return m, m.inputs[m.focusIndex].Focus()
+
+	case "enter":
+		if m.focusIndex == 8 {
+			// Save button activated
+			if err := m.saveForm(); err != nil {
+				m.setStatus(err.Error(), true)
+				return m, nil
+			}
+			m.blurAllInputs()
+			m.mode = modeList
+			m.activeTab = tabConfigured
+			m.refreshConfiguredKeys()
+			m.setStatus(fmt.Sprintf("Saved camera '%s' in memory (press 'w' to save file)", m.editingID), false)
+			return m, nil
+		} else if m.focusIndex == 6 {
+			m.snapshotMethodIndex = (m.snapshotMethodIndex + 1) % 3
+			return m, nil
+		} else if m.focusIndex == 7 {
+			m.pullEventsEnabled = !m.pullEventsEnabled
+			return m, nil
+		}
+
+		// On text inputs, enter advances to the next field
+		m.blurAllInputs()
+		m.focusIndex = (m.focusIndex + 1) % totalFields
+		if m.focusIndex < len(m.inputs) {
+			return m, m.inputs[m.focusIndex].Focus()
+		}
+		return m, nil
 	}
 
-	// Update ONLY the currently focused text input to prevent input bleeding across fields
-	cmd := m.updateInputs(msg)
-	return m, cmd
+	// Update ONLY the currently focused text input
+	if m.focusIndex >= 0 && m.focusIndex < len(m.inputs) {
+		cmd := m.updateInputs(msg)
+		return m, cmd
+	}
+
+	return m, nil
 }
 
 func (m *Model) blurAllInputs() {
@@ -331,8 +381,8 @@ func (m *Model) startAddForm() {
 	for i := range m.inputs {
 		m.inputs[i].Reset()
 	}
-	m.inputs[6].SetValue("auto")
-	m.inputs[7].SetValue("true")
+	m.snapshotMethodIndex = 0 // "auto"
+	m.pullEventsEnabled = true
 }
 
 func (m *Model) startAddFromDiscovered(dev discovery.DiscoveredDevice) {
@@ -362,8 +412,8 @@ func (m *Model) startAddFromDiscovered(dev discovery.DiscoveredDevice) {
 	m.inputs[3].SetValue(rtspURL)
 	m.inputs[4].SetValue("admin")
 	m.inputs[5].SetValue("")
-	m.inputs[6].SetValue("auto")
-	m.inputs[7].SetValue("true")
+	m.snapshotMethodIndex = 0 // "auto"
+	m.pullEventsEnabled = true
 }
 
 func (m *Model) startEditForm(camID string) {
@@ -378,12 +428,17 @@ func (m *Model) startEditForm(camID string) {
 	m.inputs[3].SetValue(cam.RTSPURL)
 	m.inputs[4].SetValue(cam.ONVIFUsername)
 	m.inputs[5].SetValue(cam.ONVIFPassword)
-	m.inputs[6].SetValue(cam.SnapshotMethod)
-	pullEv := "false"
-	if cam.PullEvents {
-		pullEv = "true"
+
+	switch strings.ToLower(cam.SnapshotMethod) {
+	case "onvif":
+		m.snapshotMethodIndex = 1
+	case "rtsp":
+		m.snapshotMethodIndex = 2
+	default:
+		m.snapshotMethodIndex = 0 // "auto"
 	}
-	m.inputs[7].SetValue(pullEv)
+
+	m.pullEventsEnabled = cam.PullEvents
 }
 
 func (m *Model) saveForm() error {
@@ -392,7 +447,11 @@ func (m *Model) saveForm() error {
 		return fmt.Errorf("camera ID cannot be empty")
 	}
 
-	pullEv := strings.ToLower(strings.TrimSpace(m.inputs[7].Value())) == "true"
+	methods := []string{"auto", "onvif", "rtsp"}
+	method := "auto"
+	if m.snapshotMethodIndex >= 0 && m.snapshotMethodIndex < len(methods) {
+		method = methods[m.snapshotMethodIndex]
+	}
 
 	camCfg := config.CameraConfig{
 		ID:             id,
@@ -401,12 +460,8 @@ func (m *Model) saveForm() error {
 		RTSPURL:        strings.TrimSpace(m.inputs[3].Value()),
 		ONVIFUsername:  strings.TrimSpace(m.inputs[4].Value()),
 		ONVIFPassword:  strings.TrimSpace(m.inputs[5].Value()),
-		SnapshotMethod: strings.TrimSpace(m.inputs[6].Value()),
-		PullEvents:     pullEv,
-	}
-
-	if camCfg.SnapshotMethod == "" {
-		camCfg.SnapshotMethod = "auto"
+		SnapshotMethod: method,
+		PullEvents:     m.pullEventsEnabled,
 	}
 
 	// If renamed, remove old ID
@@ -484,6 +539,27 @@ var (
 
 	helpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#666666"))
+
+	selectedOptionStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("#00FFAA")).
+				Background(lipgloss.Color("#1B3838")).
+				Padding(0, 1)
+
+	unselectedOptionStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#777777")).
+				Padding(0, 1)
+
+	activeButtonStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("#FFFFFF")).
+				Background(lipgloss.Color("#008080")).
+				Padding(0, 2)
+
+	normalButtonStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#AAAAAA")).
+				Background(lipgloss.Color("#222222")).
+				Padding(0, 2)
 )
 
 // View
@@ -542,17 +618,23 @@ func (m Model) renderConfiguredList() string {
 	}
 
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("    %-20s %-24s %-22s %s\n", "CAMERA ID", "NAME", "ONVIF ADDRESS", "SNAPSHOT"))
-	b.WriteString("    " + strings.Repeat("─", 80) + "\n")
+	b.WriteString(fmt.Sprintf("    %-20s %-24s %-22s %-10s %s\n", "CAMERA ID", "NAME", "ONVIF ADDRESS", "SNAPSHOT", "PULL EVENTS"))
+	b.WriteString("    " + strings.Repeat("─", 94) + "\n")
 
 	for i, id := range m.configuredKeys {
 		cam := m.cfg.Cameras[id]
 		cursor := "  "
-		line := fmt.Sprintf("%-20s %-24s %-22s %s",
+		pullStr := "Disabled"
+		if cam.PullEvents {
+			pullStr = "Enabled"
+		}
+
+		line := fmt.Sprintf("%-20s %-24s %-22s %-10s %s",
 			truncate(cam.ID, 19),
 			truncate(cam.Name, 23),
 			truncate(cam.Address, 21),
 			cam.SnapshotMethod,
+			pullStr,
 		)
 
 		if i == m.cfgCursor {
@@ -624,7 +706,7 @@ func (m Model) renderEditForm() string {
 	}
 
 	b.WriteString(fmt.Sprintf("  %s\n", tabActiveStyle.Render(actionTitle)))
-	b.WriteString("  " + strings.Repeat("─", 60) + "\n\n")
+	b.WriteString("  " + strings.Repeat("─", 65) + "\n\n")
 
 	labels := []string{
 		"Camera ID:",
@@ -633,15 +715,62 @@ func (m Model) renderEditForm() string {
 		"RTSP Stream URL:",
 		"ONVIF Username:",
 		"ONVIF Password:",
-		"Snapshot Method:",
-		"Pull Events:",
 	}
 
+	// Render text inputs (0..5)
 	for i := range m.inputs {
-		b.WriteString(fmt.Sprintf("  %-18s %s\n", labels[i], m.inputs[i].View()))
+		cursor := "  "
+		if m.focusIndex == i {
+			cursor = "▶ "
+		}
+		b.WriteString(fmt.Sprintf("%s%-18s %s\n", cursor, labels[i], m.inputs[i].View()))
 	}
 
-	b.WriteString("\n  " + helpStyle.Render("[Tab/Down] Next Field   [Enter] Save   [Esc] Cancel"))
+	// Render Snapshot Method option selector (index 6)
+	cursor6 := "  "
+	if m.focusIndex == 6 {
+		cursor6 = "▶ "
+	}
+	b.WriteString(fmt.Sprintf("%s%-18s", cursor6, "Snapshot Method:"))
+	for idx, meth := range []string{"auto", "onvif", "rtsp"} {
+		if idx == m.snapshotMethodIndex {
+			b.WriteString(" " + selectedOptionStyle.Render(fmt.Sprintf("● %s", meth)))
+		} else {
+			b.WriteString(" " + unselectedOptionStyle.Render(fmt.Sprintf("○ %s", meth)))
+		}
+	}
+	if m.focusIndex == 6 {
+		b.WriteString("  " + helpStyle.Render("[Space / ← / → to change]"))
+	}
+	b.WriteString("\n")
+
+	// Render Pull Events option selector (index 7)
+	cursor7 := "  "
+	if m.focusIndex == 7 {
+		cursor7 = "▶ "
+	}
+	b.WriteString(fmt.Sprintf("%s%-18s", cursor7, "Pull Events:"))
+	if m.pullEventsEnabled {
+		b.WriteString(" " + selectedOptionStyle.Render("● Enabled (PullPoint to MQTT)") + "  " + unselectedOptionStyle.Render("○ Disabled"))
+	} else {
+		b.WriteString(" " + unselectedOptionStyle.Render("○ Enabled") + "  " + selectedOptionStyle.Render("● Disabled"))
+	}
+	if m.focusIndex == 7 {
+		b.WriteString("  " + helpStyle.Render("[Space / ← / → to toggle]"))
+	}
+	b.WriteString("\n\n")
+
+	// Render action buttons (index 8)
+	cursor8 := "  "
+	saveBtn := normalButtonStyle.Render("[ Save Camera ]")
+	if m.focusIndex == 8 {
+		cursor8 = "▶ "
+		saveBtn = activeButtonStyle.Render("[ Save Camera ]")
+	}
+	cancelBtn := normalButtonStyle.Render("[ Cancel (Esc) ]")
+	b.WriteString(fmt.Sprintf("%s%s   %s\n\n", cursor8, saveBtn, cancelBtn))
+
+	b.WriteString("  " + helpStyle.Render("[Tab/Down] Next   [Shift+Tab/Up] Previous   [Ctrl+S / Enter] Save   [Esc] Cancel"))
 	return b.String()
 }
 
