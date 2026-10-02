@@ -104,10 +104,15 @@ func Scan(ctx context.Context, opts ScanOptions) ([]DiscoveredDevice, error) {
 				for _, d := range rtspDevs {
 					existing, exists := results[d.IP]
 					if exists {
-						existing.Type = "ONVIF+RTSP"
+						if !strings.Contains(existing.Type, d.Type) {
+							existing.Type = fmt.Sprintf("%s, %s", existing.Type, d.Type)
+						}
 						existing.RTSPURLs = append(existing.RTSPURLs, d.RTSPURLs...)
 						if existing.ServerHeader == "" {
 							existing.ServerHeader = d.ServerHeader
+						}
+						if strings.Contains(d.Type, "ONVIF") && d.Port != 554 && d.Port != 0 {
+							existing.Port = d.Port
 						}
 					} else {
 						copyDev := d
@@ -124,9 +129,18 @@ func Scan(ctx context.Context, opts ScanOptions) ([]DiscoveredDevice, error) {
 	// Consolidate list and check RTSP for any ONVIF devices missing explicit RTSP
 	list := make([]DiscoveredDevice, 0, len(results))
 	for _, dev := range results {
+		isTapo := strings.Contains(strings.ToLower(dev.Manufacturer), "tp-link") ||
+			strings.Contains(strings.ToLower(dev.Manufacturer), "tapo") ||
+			strings.HasPrefix(strings.ToUpper(dev.Model), "C") ||
+			strings.HasPrefix(strings.ToUpper(dev.Model), "TC") ||
+			dev.Port == 2020
+
 		if strings.Contains(dev.Type, "ONVIF") && len(dev.RTSPURLs) == 0 {
-			// Add standard RTSP url candidate for ONVIF cameras
-			dev.RTSPURLs = append(dev.RTSPURLs, fmt.Sprintf("rtsp://<user>:<password>@%s:554/live", dev.IP))
+			if isTapo {
+				dev.RTSPURLs = append(dev.RTSPURLs, fmt.Sprintf("rtsp://<user>:<password>@%s:554/stream1", dev.IP))
+			} else {
+				dev.RTSPURLs = append(dev.RTSPURLs, fmt.Sprintf("rtsp://<user>:<password>@%s:554/live", dev.IP))
+			}
 		}
 		list = append(list, *dev)
 	}
@@ -398,11 +412,21 @@ func scanRTSP(ctx context.Context, timeout time.Duration, ports []int) ([]Discov
 					}
 				}
 
+				// Check if ONVIF port 2020 is also open on this camera (e.g. TP-Link Tapo)
+				devType := "RTSP"
+				devPort := targetPort
 				rtspURL := fmt.Sprintf("rtsp://%s/live", addr)
+				if onvifConn, err := dialer.DialContext(ctx, "tcp", fmt.Sprintf("%s:2020", targetIP)); err == nil {
+					_ = onvifConn.Close()
+					devType = "ONVIF+RTSP"
+					devPort = 2020
+					rtspURL = fmt.Sprintf("rtsp://%s:554/stream1", targetIP)
+				}
+
 				resultsChan <- DiscoveredDevice{
 					IP:           targetIP,
-					Port:         targetPort,
-					Type:         "RTSP",
+					Port:         devPort,
+					Type:         devType,
 					RTSPURLs:     []string{rtspURL},
 					ServerHeader: serverHeader,
 				}

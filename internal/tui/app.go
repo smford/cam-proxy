@@ -400,7 +400,18 @@ func (m *Model) startAddFromDiscovered(dev discovery.DiscoveredDevice) {
 		name = fmt.Sprintf("Camera %s", dev.IP)
 	}
 
-	onvifAddr := fmt.Sprintf("%s:%d", dev.IP, dev.Port)
+	onvifPort := dev.Port
+	if onvifPort == 554 || onvifPort == 0 {
+		if strings.Contains(strings.ToLower(dev.Manufacturer), "tp-link") ||
+			strings.Contains(strings.ToLower(dev.Manufacturer), "tapo") ||
+			strings.HasPrefix(strings.ToUpper(dev.Model), "C") ||
+			strings.HasPrefix(strings.ToUpper(dev.Model), "TC") {
+			onvifPort = 2020
+		} else {
+			onvifPort = 80
+		}
+	}
+	onvifAddr := fmt.Sprintf("%s:%d", dev.IP, onvifPort)
 	rtspURL := fmt.Sprintf("rtsp://admin:password@%s:554/live", dev.IP)
 	if len(dev.RTSPURLs) > 0 {
 		rtspURL = dev.RTSPURLs[0]
@@ -494,7 +505,7 @@ func triggerScanCmd() tea.Cmd {
 
 func testCameraCmd(cfg config.CameraConfig) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
 		defer cancel()
 
 		cam := camera.NewCamera(cfg)

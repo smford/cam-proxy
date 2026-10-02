@@ -23,7 +23,7 @@ type EventHandler func(event Event)
 
 // CreatePullPointSubscription initiates an ONVIF PullPoint subscription.
 func (d *Device) CreatePullPointSubscription(ctx context.Context) (string, error) {
-	eventsURL := d.Endpoint + "/onvif/event_service"
+	eventsURL := d.GetEventsURL(ctx)
 
 	body := `
     <tev:CreatePullPointSubscription>

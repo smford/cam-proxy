@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/smford/camstop/internal/config"
@@ -37,6 +39,22 @@ func NewCamera(cfg config.CameraConfig) *Camera {
 	return cam
 }
 
+// authenticatedRTSPURL injects camera ONVIF username/password into the RTSP URL if credentials are not already embedded.
+func authenticatedRTSPURL(rawURL, username, password string) string {
+	if username == "" {
+		return rawURL
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	if u.User == nil || u.User.Username() == "" {
+		u.User = url.UserPassword(username, password)
+		return u.String()
+	}
+	return rawURL
+}
+
 // Snapshot captures a still image using either ONVIF native snapshot or RTSP keyframe extraction.
 func (c *Camera) Snapshot(ctx context.Context) ([]byte, error) {
 	method := c.Config.SnapshotMethod
@@ -56,11 +74,42 @@ func (c *Camera) Snapshot(ctx context.Context) ([]byte, error) {
 		} else {
 			slog.Debug("could not retrieve ONVIF snapshot URI", "camera_id", c.Config.ID, "err", err)
 		}
+
+		// Strategy 1b: If ONVIF HTTP snapshot is not supported by camera firmware (e.g. Tapo),
+		// check if ONVIF exposes an MJPEG video stream (e.g. Tapo stream8)
+		if method == "auto" {
+			if mjpegStreamURI, err := c.onvifDevice.GetMJPEGStreamURI(ctx); err == nil && mjpegStreamURI != "" {
+				authMJPEG := authenticatedRTSPURL(mjpegStreamURI, c.Config.ONVIFUsername, c.Config.ONVIFPassword)
+				data, err := rtsp.CaptureSnapshot(ctx, authMJPEG, rtsp.DefaultSnapshotOptions())
+				if err == nil && len(data) > 0 {
+					return data, nil
+				}
+				slog.Debug("ONVIF MJPEG stream capture failed", "camera_id", c.Config.ID, "err", err)
+			}
+		}
 	}
 
 	// Strategy 2: RTSP on-demand connection
 	if (method == "auto" || method == "rtsp") && c.Config.RTSPURL != "" {
-		return rtsp.CaptureSnapshot(ctx, c.Config.RTSPURL, rtsp.DefaultSnapshotOptions())
+		authURL := authenticatedRTSPURL(c.Config.RTSPURL, c.Config.ONVIFUsername, c.Config.ONVIFPassword)
+		data, err := rtsp.CaptureSnapshot(ctx, authURL, rtsp.DefaultSnapshotOptions())
+		if err == nil && len(data) > 0 {
+			return data, nil
+		}
+
+		// Fallback for cameras (like TP-Link Tapo) where stream1 / stream2 are H.264,
+		// but an MJPEG snapshot stream is provided on stream8
+		if errors.Is(err, rtsp.ErrH264Unsupported) &&
+			(strings.Contains(authURL, "/stream1") || strings.Contains(authURL, "/stream2")) {
+			stream8URL := strings.Replace(authURL, "/stream1", "/stream8", 1)
+			stream8URL = strings.Replace(stream8URL, "/stream2", "/stream8", 1)
+			data8, err8 := rtsp.CaptureSnapshot(ctx, stream8URL, rtsp.DefaultSnapshotOptions())
+			if err8 == nil && len(data8) > 0 {
+				return data8, nil
+			}
+		}
+
+		return nil, err
 	}
 
 	return nil, ErrNoSnapshotSource

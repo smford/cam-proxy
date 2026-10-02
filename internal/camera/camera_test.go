@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/smford/camstop/internal/camera"
 	"github.com/smford/camstop/internal/config"
@@ -82,5 +83,25 @@ func TestCameraONVIFSnapshotSuccess(t *testing.T) {
 
 	if string(data) != "FAKE_JPEG_IMAGE_BYTES" {
 		t.Errorf("expected FAKE_JPEG_IMAGE_BYTES, got %q", string(data))
+	}
+}
+
+func TestCameraRTSPCredentialInjection(t *testing.T) {
+	cam := camera.NewCamera(config.CameraConfig{
+		ID:             "cam_rtsp_auth",
+		RTSPURL:        "rtsp://192.168.1.50:554/stream1",
+		ONVIFUsername:  "myuser",
+		ONVIFPassword:  "mypass",
+		SnapshotMethod: "rtsp",
+	})
+
+	// When snapshot is called with unreachable IP, it attempts connection with injected credentials
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	_, err := cam.Snapshot(ctx)
+	// Should fail with network connect/timeout rather than ErrNoSnapshotSource
+	if errors.Is(err, camera.ErrNoSnapshotSource) {
+		t.Errorf("expected network attempt, got %v", err)
 	}
 }

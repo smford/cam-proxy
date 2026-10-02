@@ -21,7 +21,7 @@ type PTZPresetCommand struct {
 
 // ContinuousMove sends a ContinuousMove SOAP request to the ONVIF PTZ service.
 func (d *Device) ContinuousMove(ctx context.Context, cmd PTZMoveCommand) error {
-	ptzURL := d.Endpoint + "/onvif/ptz_service"
+	ptzURL := d.GetPTZURL(ctx)
 
 	body := fmt.Sprintf(`
     <tptz:ContinuousMove>
@@ -41,7 +41,7 @@ func (d *Device) ContinuousMove(ctx context.Context, cmd PTZMoveCommand) error {
 
 // Stop sends a Stop SOAP request to halt ongoing PTZ motion.
 func (d *Device) Stop(ctx context.Context, profileToken string) error {
-	ptzURL := d.Endpoint + "/onvif/ptz_service"
+	ptzURL := d.GetPTZURL(ctx)
 
 	body := fmt.Sprintf(`
     <tptz:Stop>
@@ -59,7 +59,7 @@ func (d *Device) Stop(ctx context.Context, profileToken string) error {
 
 // GotoPreset moves the camera to a predefined ONVIF PTZ preset.
 func (d *Device) GotoPreset(ctx context.Context, cmd PTZPresetCommand) error {
-	ptzURL := d.Endpoint + "/onvif/ptz_service"
+	ptzURL := d.GetPTZURL(ctx)
 
 	body := fmt.Sprintf(`
     <tptz:GotoPreset>
