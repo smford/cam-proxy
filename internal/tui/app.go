@@ -146,7 +146,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case testDoneMsg:
 		if msg.err != nil {
-			m.setStatus(fmt.Sprintf("Camera '%s' test failed: %v", msg.cameraID, msg.err), true)
+			errStr := msg.err.Error()
+			if strings.Contains(errStr, "401") || strings.Contains(errStr, "NotAuthorized") {
+				m.setStatus(fmt.Sprintf("Camera '%s' test failed: 401 Unauthorized (Check Camera Account in Tapo app)", msg.cameraID), true)
+			} else {
+				m.setStatus(fmt.Sprintf("Camera '%s' test failed: %v", msg.cameraID, msg.err), true)
+			}
 		} else {
 			m.setStatus(fmt.Sprintf("Camera '%s' snapshot test SUCCEEDED!", msg.cameraID), false)
 		}

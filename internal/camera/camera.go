@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net"
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/smford/camstop/internal/config"
 	"github.com/smford/camstop/internal/onvif"
@@ -26,6 +28,32 @@ type Camera struct {
 	mu          sync.RWMutex
 }
 
+// normalizeONVIFAddress ensures that the ONVIF HTTP endpoint does not accidentally connect
+// to the RTSP port (554) or standard port 80 if the camera runs ONVIF on port 2020 (like Tapo).
+func normalizeONVIFAddress(address string) string {
+	clean := strings.TrimPrefix(strings.TrimPrefix(address, "http://"), "https://")
+	host, port, err := net.SplitHostPort(clean)
+	if err == nil {
+		if port == "554" {
+			// Port 554 is RTSP. If port 2020 is open, use 2020 for ONVIF.
+			conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort(host, "2020"), 250*time.Millisecond)
+			if dialErr == nil {
+				_ = conn.Close()
+				return net.JoinHostPort(host, "2020")
+			}
+			return net.JoinHostPort(host, "80")
+		}
+		return clean
+	}
+	// No port specified (e.g. "192.168.1.12")
+	conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort(clean, "2020"), 250*time.Millisecond)
+	if dialErr == nil {
+		_ = conn.Close()
+		return net.JoinHostPort(clean, "2020")
+	}
+	return clean
+}
+
 // NewCamera initializes a Camera instance from configuration.
 func NewCamera(cfg config.CameraConfig) *Camera {
 	cam := &Camera{
@@ -33,7 +61,8 @@ func NewCamera(cfg config.CameraConfig) *Camera {
 	}
 
 	if cfg.Address != "" {
-		cam.onvifDevice = onvif.NewDevice(cfg.Address, cfg.ONVIFUsername, cfg.ONVIFPassword)
+		normalizedAddr := normalizeONVIFAddress(cfg.Address)
+		cam.onvifDevice = onvif.NewDevice(normalizedAddr, cfg.ONVIFUsername, cfg.ONVIFPassword)
 	}
 
 	return cam
@@ -98,14 +127,23 @@ func (c *Camera) Snapshot(ctx context.Context) ([]byte, error) {
 		}
 
 		// Fallback for cameras (like TP-Link Tapo) where stream1 / stream2 are H.264,
-		// but an MJPEG snapshot stream is provided on stream8
-		if errors.Is(err, rtsp.ErrH264Unsupported) &&
-			(strings.Contains(authURL, "/stream1") || strings.Contains(authURL, "/stream2")) {
-			stream8URL := strings.Replace(authURL, "/stream1", "/stream8", 1)
-			stream8URL = strings.Replace(stream8URL, "/stream2", "/stream8", 1)
-			data8, err8 := rtsp.CaptureSnapshot(ctx, stream8URL, rtsp.DefaultSnapshotOptions())
-			if err8 == nil && len(data8) > 0 {
-				return data8, nil
+		// or where /live was configured instead of /stream1 or /stream8
+		if (errors.Is(err, rtsp.ErrH264Unsupported) || strings.Contains(err.Error(), "404")) &&
+			(strings.Contains(authURL, "/stream1") || strings.Contains(authURL, "/stream2") || strings.Contains(authURL, "/live")) {
+			for _, altPath := range []string{"/stream8", "/stream1"} {
+				altURL := authURL
+				for _, old := range []string{"/stream1", "/stream2", "/live"} {
+					if strings.Contains(altURL, old) {
+						altURL = strings.Replace(altURL, old, altPath, 1)
+						break
+					}
+				}
+				if altURL != authURL {
+					dataAlt, errAlt := rtsp.CaptureSnapshot(ctx, altURL, rtsp.DefaultSnapshotOptions())
+					if errAlt == nil && len(dataAlt) > 0 {
+						return dataAlt, nil
+					}
+				}
 			}
 		}
 
