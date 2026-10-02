@@ -26,4 +26,6 @@ coverage.html
 # Local configs and builds
 dist/
 build/
+camstop.yaml
+camtap.yaml
 camtap.local.yaml

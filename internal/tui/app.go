@@ -250,8 +250,21 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) updateEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
+		m.blurAllInputs()
 		m.mode = modeList
 		m.setStatus("Canceled camera edit", false)
+		return m, nil
+
+	case "ctrl+s":
+		if err := m.saveForm(); err != nil {
+			m.setStatus(err.Error(), true)
+			return m, nil
+		}
+		m.blurAllInputs()
+		m.mode = modeList
+		m.activeTab = tabConfigured
+		m.refreshConfiguredKeys()
+		m.setStatus(fmt.Sprintf("Saved camera '%s' in memory (press 'w' to save file)", m.editingID), false)
 		return m, nil
 
 	case "tab", "down":
@@ -271,6 +284,7 @@ func (m Model) updateEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.setStatus(err.Error(), true)
 				return m, nil
 			}
+			m.blurAllInputs()
 			m.mode = modeList
 			m.activeTab = tabConfigured
 			m.refreshConfiguredKeys()
@@ -282,23 +296,38 @@ func (m Model) updateEdit(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, m.inputs[m.focusIndex].Focus()
 	}
 
-	// Update text inputs
+	// Update ONLY the currently focused text input to prevent input bleeding across fields
 	cmd := m.updateInputs(msg)
 	return m, cmd
 }
 
-func (m *Model) updateInputs(msg tea.Msg) tea.Cmd {
-	cmds := make([]tea.Cmd, len(m.inputs))
+func (m *Model) blurAllInputs() {
 	for i := range m.inputs {
-		m.inputs[i], cmds[i] = m.inputs[i].Update(msg)
+		m.inputs[i].Blur()
 	}
-	return tea.Batch(cmds...)
+}
+
+func (m *Model) resetFormFocus() {
+	m.blurAllInputs()
+	m.focusIndex = 0
+	if len(m.inputs) > 0 {
+		m.inputs[0].Focus()
+	}
+}
+
+func (m *Model) updateInputs(msg tea.Msg) tea.Cmd {
+	if m.focusIndex >= 0 && m.focusIndex < len(m.inputs) {
+		var cmd tea.Cmd
+		m.inputs[m.focusIndex], cmd = m.inputs[m.focusIndex].Update(msg)
+		return cmd
+	}
+	return nil
 }
 
 func (m *Model) startAddForm() {
 	m.isNewCam = true
 	m.editingID = ""
-	m.focusIndex = 0
+	m.resetFormFocus()
 	for i := range m.inputs {
 		m.inputs[i].Reset()
 	}
@@ -308,7 +337,7 @@ func (m *Model) startAddForm() {
 
 func (m *Model) startAddFromDiscovered(dev discovery.DiscoveredDevice) {
 	m.isNewCam = true
-	m.focusIndex = 0
+	m.resetFormFocus()
 	cleanIP := strings.ReplaceAll(dev.IP, ".", "_")
 	id := fmt.Sprintf("cam_%s", cleanIP)
 	m.editingID = id
@@ -340,7 +369,7 @@ func (m *Model) startAddFromDiscovered(dev discovery.DiscoveredDevice) {
 func (m *Model) startEditForm(camID string) {
 	m.isNewCam = false
 	m.editingID = camID
-	m.focusIndex = 0
+	m.resetFormFocus()
 	cam := m.cfg.Cameras[camID]
 
 	m.inputs[0].SetValue(cam.ID)
