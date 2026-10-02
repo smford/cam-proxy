@@ -103,51 +103,25 @@ func (c *Camera) Snapshot(ctx context.Context) ([]byte, error) {
 		} else {
 			slog.Debug("could not retrieve ONVIF snapshot URI", "camera_id", c.Config.ID, "err", err)
 		}
-
-		// Strategy 1b: If ONVIF HTTP snapshot is not supported by camera firmware (e.g. Tapo),
-		// check if ONVIF exposes an MJPEG video stream (e.g. Tapo stream8)
-		if method == "auto" {
-			if mjpegStreamURI, err := c.onvifDevice.GetMJPEGStreamURI(ctx); err == nil && mjpegStreamURI != "" {
-				authMJPEG := authenticatedRTSPURL(mjpegStreamURI, c.Config.ONVIFUsername, c.Config.ONVIFPassword)
-				data, err := rtsp.CaptureSnapshot(ctx, authMJPEG, rtsp.DefaultSnapshotOptions())
-				if err == nil && len(data) > 0 {
-					return data, nil
-				}
-				slog.Debug("ONVIF MJPEG stream capture failed", "camera_id", c.Config.ID, "err", err)
-			}
-		}
 	}
 
 	// Strategy 2: RTSP on-demand connection
-	if (method == "auto" || method == "rtsp") && c.Config.RTSPURL != "" {
-		authURL := authenticatedRTSPURL(c.Config.RTSPURL, c.Config.ONVIFUsername, c.Config.ONVIFPassword)
-		data, err := rtsp.CaptureSnapshot(ctx, authURL, rtsp.DefaultSnapshotOptions())
-		if err == nil && len(data) > 0 {
-			return data, nil
-		}
-
-		// Fallback for cameras (like TP-Link Tapo) where stream1 / stream2 are H.264,
-		// or where /live was configured instead of /stream1 or /stream8
-		if (errors.Is(err, rtsp.ErrH264Unsupported) || strings.Contains(err.Error(), "404")) &&
-			(strings.Contains(authURL, "/stream1") || strings.Contains(authURL, "/stream2") || strings.Contains(authURL, "/live")) {
-			for _, altPath := range []string{"/stream8", "/stream1"} {
-				altURL := authURL
-				for _, old := range []string{"/stream1", "/stream2", "/live"} {
-					if strings.Contains(altURL, old) {
-						altURL = strings.Replace(altURL, old, altPath, 1)
-						break
-					}
-				}
-				if altURL != authURL {
-					dataAlt, errAlt := rtsp.CaptureSnapshot(ctx, altURL, rtsp.DefaultSnapshotOptions())
-					if errAlt == nil && len(dataAlt) > 0 {
-						return dataAlt, nil
-					}
-				}
+	if method == "auto" || method == "rtsp" {
+		rtspURL := c.Config.RTSPURL
+		if rtspURL == "" && c.onvifDevice != nil {
+			if uri, err := c.onvifDevice.GetStreamURI(ctx, c.Config.ProfileToken); err == nil && uri != "" {
+				rtspURL = uri
 			}
 		}
 
-		return nil, err
+		if rtspURL != "" {
+			authURL := authenticatedRTSPURL(rtspURL, c.Config.ONVIFUsername, c.Config.ONVIFPassword)
+			data, err := rtsp.CaptureSnapshot(ctx, authURL, rtsp.DefaultSnapshotOptions())
+			if err == nil && len(data) > 0 {
+				return data, nil
+			}
+			return nil, err
+		}
 	}
 
 	return nil, ErrNoSnapshotSource

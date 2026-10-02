@@ -29,3 +29,6 @@ build/
 camstop.yaml
 camtap.yaml
 camtap.local.yaml
+*.jpg
+*.jpeg
+
