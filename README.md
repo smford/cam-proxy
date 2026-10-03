@@ -9,6 +9,60 @@
 
 ---
 
+## Installation
+
+Choose your preferred installation method:
+
+### 1. Homebrew (macOS & Linux)
+Install directly from the official [smford/homebrew-tap](https://github.com/smford/homebrew-tap):
+```bash
+brew tap smford/tap
+brew install cam-proxy
+```
+
+### 2. Docker Container
+Official multi-architecture images (`linux/amd64`, `linux/arm64`) with `ffmpeg` and `ca-certificates` pre-installed:
+```bash
+docker run -d \
+  --name cam-proxy \
+  --restart unless-stopped \
+  --network host \
+  -v $(pwd)/cam-proxy.yaml:/etc/cam-proxy/cam-proxy.yaml:ro \
+  ghcr.io/smford/cam-proxy:latest
+```
+
+### 3. Pre-Built Static Binaries
+Download pre-compiled, zero-dependency static binaries (`linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`) with SHA256 checksums from the **[GitHub Releases](https://github.com/smford/cam-proxy/releases)** page.
+
+### 4. Build from Source
+Requires Go 1.22+:
+```bash
+git clone https://github.com/smford/cam-proxy.git
+cd cam-proxy
+make build
+```
+
+---
+
+## Quick Start in 60 Seconds
+
+1. **Discover Cameras on Local Network**:
+   ```bash
+   ./cam-proxy --scan --generate-config >> cam-proxy.yaml
+   ```
+2. **Configure Credentials & Settings**:
+   Edit `cam-proxy.yaml` with your camera usernames/passwords, or launch the interactive terminal manager:
+   ```bash
+   ./cam-proxy --tui
+   ```
+3. **Start the Edge Daemon**:
+   ```bash
+   ./cam-proxy -config cam-proxy.yaml
+   ```
+   Live snapshots are immediately available at `http://localhost:8080/api/v1/cameras/<id>/snapshot`!
+
+---
+
 ## Architecture Overview
 
 ```mermaid
@@ -486,25 +540,11 @@ When MQTT and discovery are enabled (`discovery: true`, enabled by default), `ca
 
 ---
 
-## Installation & Distribution
+## Production Deployment
 
-### 1. Homebrew (macOS & Linux)
+### 1. Hardened Systemd Service (Linux Edge & Server)
 
-Install `cam-proxy` via the official [smford/homebrew-tap](https://github.com/smford/homebrew-tap):
-
-```bash
-# Add the tap repository
-brew tap smford/tap
-
-# Install cam-proxy
-brew install cam-proxy
-```
-
----
-
-### 2. Hardened Systemd Service (Linux Edge & Server)
-
-For production Linux deployments, `cam-proxy` provides a hardened Systemd unit template at [`systemd/cam-proxy.service`](systemd/cam-proxy.service) equipped with strict security sandboxing:
+For production Linux installations, `cam-proxy` provides a hardened Systemd unit template at [`systemd/cam-proxy.service`](systemd/cam-proxy.service) equipped with strict security sandboxing:
 
 - **Security Isolation**: `DynamicUser=yes` dynamically provisions an unprivileged, ephemeral service user and group.
 - **Read-Only Filesystem**: `ProtectSystem=strict` and `ProtectHome=yes` lock the filesystem down read-only, preventing unauthorized modifications.
@@ -532,26 +572,9 @@ journalctl -u cam-proxy -f
 
 ---
 
-## Docker Deployment
+### 2. Docker Compose
 
-`cam-proxy` provides official multi-architecture Docker images (`linux/amd64` and `linux/arm64`) with `ffmpeg` and `ca-certificates` pre-installed for seamless H.264/H.265 RTSP snapshot extraction.
-
-### 1. Run with Docker CLI
-```bash
-docker run -d \
-  --name cam-proxy \
-  --restart unless-stopped \
-  --network host \
-  -v $(pwd)/cam-proxy.yaml:/etc/cam-proxy/cam-proxy.yaml:ro \
-  ghcr.io/smford/cam-proxy:latest
-```
-
-> [!NOTE]
-> **Why `--network host`?**
-> Local camera discovery (`--scan`) relies on ONVIF WS-Discovery (multicast UDP `239.255.255.250:3702`). Docker bridge networks do not forward UDP multicast broadcasts across the host's physical network adapter. If you do not need auto-discovery and configure cameras directly by IP, you can use standard port mapping instead (`-p 8080:8080`).
-
-### 2. Run with Docker Compose
-A [`docker-compose.yml`](docker-compose.yml) is included in the repository:
+A ready-to-use [`docker-compose.yml`](docker-compose.yml) is included in the repository:
 
 ```yaml
 services:
@@ -566,12 +589,19 @@ services:
       - TZ=UTC
 ```
 
-Start the container:
+Start the service:
 ```bash
 docker compose up -d
 ```
 
+> [!NOTE]
+> **Why `network_mode: host`?**
+> Local camera discovery (`--scan`) relies on ONVIF WS-Discovery (multicast UDP `239.255.255.250:3702`). Docker bridge networks do not forward UDP multicast broadcasts across the host's physical network adapter. If you do not need auto-discovery and configure cameras directly by IP, you can use standard port mapping instead (`-p 8080:8080`).
+
+---
+
 ### 3. Build Docker Image Locally
+
 ```bash
 # Using Make
 make docker-build
