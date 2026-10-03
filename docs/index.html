@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme: light;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>cam-proxy — Lightweight Edge Camera Gateway</title>
+  <meta name="description" content="Zero-CGO edge camera gateway for IP cameras. Sub-100ms HTTP snapshots, hardware single-flight coalescing, PTZ proxying, MJPEG streaming, and ONVIF-to-MQTT events.">
+  <meta name="color-scheme" content="light">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📹</text></svg>">
+
+  <style>
+    :root {
+      color-scheme: light;
+      --bg-page: #f8fafc;
+      --bg-surface: #ffffff;
+      --bg-surface-alt: #f1f5f9;
+      --bg-surface-elevated: #ffffff;
+      --border-subtle: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --text-dim: #64748b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --primary-light: #eff6ff;
+      --accent: #0284c7;
+      --success-bg: #ecfdf5;
+      --success-text: #065f46;
+      --success-border: #a7f3d0;
+      --code-bg: #f8fafc;
+      --code-border: #e2e8f0;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.04);
+      --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: var(--primary);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+    a:hover {
+      color: var(--primary-hover);
+      text-decoration: underline;
+    }
+
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Header & Navigation */
+    header {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(8px);
+      background-color: rgba(255, 255, 255, 0.95);
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-main);
+      text-decoration: none;
+    }
+    .logo:hover {
+      text-decoration: none;
+    }
+    .logo-icon {
+      font-size: 1.5rem;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      font-size: 0.925rem;
+      font-weight: 500;
+    }
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+    .nav-links a:hover {
+      color: var(--primary);
+    }
+
+    .btn-github {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: var(--bg-surface-alt);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      color: var(--text-main) !important;
+      font-weight: 600;
+      font-size: 0.875rem;
+      transition: all 0.15s ease;
+    }
+    .btn-github:hover {
+      background: #e2e8f0;
+      text-decoration: none !important;
+    }
+
+    /* Hero Section */
+    .hero {
+      padding: 64px 0 48px;
+      text-align: center;
+    }
+
+    .release-badge-wrapper {
+      display: inline-flex;
+      margin-bottom: 20px;
+    }
+
+    .release-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: var(--primary-light);
+      border: 1px solid #bfdbfe;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+    }
+
+    .hero h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--text-main);
+      margin-bottom: 16px;
+      line-height: 1.15;
+    }
+
+    .hero-subtitle {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 720px;
+      margin: 0 auto 32px;
+      line-height: 1.5;
+    }
+
+    .quick-install-box {
+      max-width: 600px;
+      margin: 0 auto 36px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 12px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .quick-install-code {
+      font-family: var(--font-mono);
+      font-size: 0.95rem;
+      color: var(--text-main);
+      font-weight: 600;
+      overflow-x: auto;
+      white-space: nowrap;
+      padding-left: 8px;
+    }
+
+    .btn-copy {
+      background: var(--bg-surface-alt);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+    .btn-copy:hover {
+      background: #e2e8f0;
+      color: var(--text-main);
+    }
+
+    .hero-actions {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff !important;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 1rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: var(--shadow-sm);
+      transition: background 0.15s ease;
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      text-decoration: none;
+    }
+
+    .btn-secondary {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      color: var(--text-main) !important;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 1rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.15s ease;
+    }
+    .btn-secondary:hover {
+      background: var(--bg-surface-alt);
+      text-decoration: none;
+    }
+
+    /* Release Card */
+    .release-section {
+      margin: 40px 0 60px;
+    }
+
+    .release-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: var(--shadow-md);
+    }
+
+    .release-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .release-title-area {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    .release-title-area h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .version-tag {
+      font-family: var(--font-mono);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--primary);
+      background: var(--primary-light);
+      padding: 2px 10px;
+      border-radius: 6px;
+      border: 1px solid #bfdbfe;
+    }
+
+    .release-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--success-text);
+      background: var(--success-bg);
+      border: 1px solid var(--success-border);
+      padding: 4px 10px;
+      border-radius: 9999px;
+    }
+
+    .download-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .download-card {
+      background: var(--bg-page);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.15s ease;
+    }
+    .download-card:hover {
+      border-color: var(--primary);
+      background: var(--bg-surface);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .download-platform {
+      font-weight: 700;
+      font-size: 0.95rem;
+      margin-bottom: 4px;
+      color: var(--text-main);
+    }
+
+    .download-desc {
+      font-size: 0.825rem;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+
+    .download-link {
+      font-size: 0.85rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Features Grid */
+    .section-title {
+      font-size: 2rem;
+      font-weight: 800;
+      text-align: center;
+      margin-bottom: 12px;
+      letter-spacing: -0.02em;
+    }
+
+    .section-subtitle {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      text-align: center;
+      max-width: 650px;
+      margin: 0 auto 40px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+      margin-bottom: 64px;
+    }
+
+    .feature-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .feature-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: var(--border-strong);
+    }
+
+    .feature-icon {
+      font-size: 1.75rem;
+      margin-bottom: 14px;
+      display: inline-block;
+    }
+
+    .feature-card h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text-main);
+    }
+
+    .feature-card p {
+      font-size: 0.925rem;
+      color: var(--text-muted);
+      line-height: 1.55;
+    }
+
+    /* Tabs & Code Section */
+    .tabs-wrapper {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 32px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 64px;
+    }
+
+    .tab-nav {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 12px;
+      margin-bottom: 24px;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      padding: 8px 16px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.15s ease;
+    }
+    .tab-btn.active {
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+    .tab-btn:hover:not(.active) {
+      background: var(--bg-surface-alt);
+      color: var(--text-main);
+    }
+
+    .tab-pane {
+      display: none;
+    }
+    .tab-pane.active {
+      display: block;
+    }
+
+    .code-block {
+      background: var(--code-bg);
+      border: 1px solid var(--code-border);
+      border-radius: 10px;
+      padding: 16px;
+      position: relative;
+      font-family: var(--font-mono);
+      font-size: 0.875rem;
+      color: var(--text-main);
+      overflow-x: auto;
+      line-height: 1.6;
+    }
+    .code-block pre {
+      margin: 0;
+    }
+    .code-copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #ffffff;
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+    }
+    .code-copy-btn:hover {
+      color: var(--text-main);
+      background: #f1f5f9;
+    }
+
+    /* API Table */
+    .table-container {
+      overflow-x: auto;
+      margin-top: 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.9rem;
+    }
+
+    th {
+      background: var(--bg-surface-alt);
+      color: var(--text-muted);
+      font-weight: 600;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-strong);
+    }
+
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-main);
+    }
+
+    .badge-method {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 0.75rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .badge-get {
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+    }
+    .badge-post {
+      background: #fef3c7;
+      color: #b45309;
+      border: 1px solid #fde68a;
+    }
+
+    /* Footer */
+    footer {
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-subtle);
+      padding: 40px 0;
+      margin-top: 80px;
+      font-size: 0.875rem;
+      color: var(--text-dim);
+    }
+
+    .footer-inner {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    @media (max-width: 768px) {
+      .hero h1 {
+        font-size: 2.25rem;
+      }
+      .nav-links {
+        display: none;
+      }
+      .release-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="container nav-inner">
+      <a href="#" class="logo">
+        <span class="logo-icon">📹</span>
+        <span>cam-proxy</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#install">Installation</a>
+        <a href="#api">API</a>
+        <a href="https://github.com/smford/cam-proxy/blob/main/docs/architecture.md" target="_blank" rel="noopener">Architecture</a>
+        <a href="https://github.com/smford/cam-proxy" class="btn-github" target="_blank" rel="noopener">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <main class="container">
+    <section class="hero">
+      <div class="release-badge-wrapper">
+        <a href="#release" class="release-pill">
+          <span class="pulse-dot"></span>
+          <span>Latest Release: <strong id="release-version">v0.4.0</strong></span>
+        </a>
+      </div>
+      <h1>Lightweight Edge Camera Gateway</h1>
+      <p class="hero-subtitle">
+        Zero-CGO high-speed IP camera proxy for Home Assistant and edge hardware.
+        Sub-100ms HTTP snapshots, hardware single-flight coalescing, PTZ control, MJPEG streaming, and ONVIF-to-MQTT events.
+      </p>
+
+      <div class="quick-install-box">
+        <span class="quick-install-code" id="brew-install-cmd">brew tap smford/tap && brew install cam-proxy</span>
+        <button class="btn-copy" onclick="copySnippet('brew-install-cmd', this)">
+          <span>Copy</span>
+        </button>
+      </div>
+
+      <div class="hero-actions">
+        <a href="#install" class="btn-primary">Get Started</a>
+        <a href="https://github.com/smford/cam-proxy" class="btn-secondary" target="_blank" rel="noopener">View Source on GitHub</a>
+      </div>
+    </section>
+
+    <!-- Detailed Release Section -->
+    <section id="release" class="release-section">
+      <div class="release-card">
+        <div class="release-header">
+          <div class="release-title-area">
+            <h2>Current Release</h2>
+            <span class="version-tag" id="release-version-number">0.4.0</span>
+            <span class="release-status">Stable</span>
+          </div>
+          <div>
+            <a href="https://github.com/smford/cam-proxy/releases/tag/v0.4.0" class="btn-github" target="_blank" rel="noopener">
+              View Release Notes on GitHub →
+            </a>
+          </div>
+        </div>
+
+        <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 16px;">
+          Download pre-compiled static zero-dependency binaries for Linux, macOS, and Raspberry Pi:
+        </p>
+
+        <div class="download-grid">
+          <div class="download-card">
+            <div>
+              <div class="download-platform">macOS (Apple Silicon)</div>
+              <div class="download-desc">Darwin ARM64 (M1 / M2 / M3 / M4)</div>
+            </div>
+            <a href="https://github.com/smford/cam-proxy/releases/download/v0.4.0/cam-proxy_0.4.0_darwin_arm64.tar.gz" class="download-link">
+              Download tar.gz ↓
+            </a>
+          </div>
+
+          <div class="download-card">
+            <div>
+              <div class="download-platform">macOS (Intel)</div>
+              <div class="download-desc">Darwin AMD64 (x86_64)</div>
+            </div>
+            <a href="https://github.com/smford/cam-proxy/releases/download/v0.4.0/cam-proxy_0.4.0_darwin_amd64.tar.gz" class="download-link">
+              Download tar.gz ↓
+            </a>
+          </div>
+
+          <div class="download-card">
+            <div>
+              <div class="download-platform">Linux & Raspberry Pi (ARM64)</div>
+              <div class="download-desc">RPi 3 / 4 / 5 & Zero 2 W</div>
+            </div>
+            <a href="https://github.com/smford/cam-proxy/releases/download/v0.4.0/cam-proxy_0.4.0_linux_arm64.tar.gz" class="download-link">
+              Download tar.gz ↓
+            </a>
+          </div>
+
+          <div class="download-card">
+            <div>
+              <div class="download-platform">Linux (x86_64)</div>
+              <div class="download-desc">Linux AMD64 (Servers, VMs, Intel NUC)</div>
+            </div>
+            <a href="https://github.com/smford/cam-proxy/releases/download/v0.4.0/cam-proxy_0.4.0_linux_amd64.tar.gz" class="download-link">
+              Download tar.gz ↓
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Key Features -->
+    <section id="features" style="padding-top: 20px;">
+      <h2 class="section-title">Engineered for Hardware Resilience</h2>
+      <p class="section-subtitle">Low-cost IP cameras have fragile web servers that crash under concurrent dashboard requests. cam-proxy protects them.</p>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🛡️</div>
+          <h3>Single-Flight Coalescing</h3>
+          <p>Concurrently arriving snapshot requests are coalesced into a single outbound request using <code>singleflight.Group</code>. 50 dashboard clients trigger exactly 1 camera fetch.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3>Sub-100ms HTTP Snapshots</h3>
+          <p>Extracts JPEG snapshots natively from the camera's ONVIF HTTP endpoint in under 100ms. Configurable in-memory TTL caching prevents camera hardware flooding.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🎥</div>
+          <h3>Multipart MJPEG Streaming</h3>
+          <p>Continuous multipart/x-mixed-replace live streams at <code>/mjpeg</code> with automatic PTZ cache invalidation and zero browser buffering issues.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🔄</div>
+          <h3>PTZ Proxy & Eviction</h3>
+          <p>Continuous move, stop, and preset positioning via ONVIF SOAP. Any pan, tilt, or zoom immediately evicts stale frame caches so dashboards stay in sync.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">📡</div>
+          <h3>ONVIF PullPoint to MQTT</h3>
+          <p>Subscribes to camera motion, tamper, and line-crossing event streams, publishing normalized JSON states to MQTT with Home Assistant auto-discovery.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">🥧</div>
+          <h3>Raspberry Pi & Edge Optimized</h3>
+          <p>Pure zero-CGO Go binary. Runs as an unprivileged Systemd service or scratch Docker container, idling at less than 15MB RAM and 0% CPU.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Installation & Setup Tabs -->
+    <section id="install">
+      <h2 class="section-title">Quick Installation</h2>
+      <p class="section-subtitle">Install with Homebrew, Docker, or standalone binary in seconds.</p>
+
+      <div class="tabs-wrapper">
+        <div class="tab-nav">
+          <button class="tab-btn active" onclick="switchTab('tab-homebrew', this)">Homebrew</button>
+          <button class="tab-btn" onclick="switchTab('tab-docker', this)">Docker</button>
+          <button class="tab-btn" onclick="switchTab('tab-rpi', this)">Raspberry Pi / Systemd</button>
+          <button class="tab-btn" onclick="switchTab('tab-tui', this)">Terminal Wizard (TUI)</button>
+        </div>
+
+        <div id="tab-homebrew" class="tab-pane active">
+          <p style="margin-bottom: 12px; color: var(--text-muted);">Install directly on macOS or Linux via the official Homebrew tap:</p>
+          <div class="code-block">
+            <button class="code-copy-btn" onclick="copyBlock(this)">Copy</button>
+            <pre><code>brew tap smford/tap
+brew install cam-proxy
+
+# Start the gateway with your configuration
+cam-proxy -config cam-proxy.yaml</code></pre>
+          </div>
+        </div>
+
+        <div id="tab-docker" class="tab-pane">
+          <p style="margin-bottom: 12px; color: var(--text-muted);">Run the minimal multi-arch scratch container with host networking for ONVIF discovery:</p>
+          <div class="code-block">
+            <button class="code-copy-btn" onclick="copyBlock(this)">Copy</button>
+            <pre><code>docker run -d \
+  --name cam-proxy \
+  --restart unless-stopped \
+  --network host \
+  -v $(pwd)/cam-proxy.yaml:/etc/cam-proxy/cam-proxy.yaml:ro \
+  ghcr.io/smford/cam-proxy:latest</code></pre>
+          </div>
+        </div>
+
+        <div id="tab-rpi" class="tab-pane">
+          <p style="margin-bottom: 12px; color: var(--text-muted);">Install as an isolated, sandboxed Systemd daemon with DynamicUser security:</p>
+          <div class="code-block">
+            <button class="code-copy-btn" onclick="copyBlock(this)">Copy</button>
+            <pre><code># Download latest Linux ARM64 binary for Raspberry Pi
+curl -sL https://github.com/smford/cam-proxy/releases/download/v0.4.0/cam-proxy_0.4.0_linux_arm64.tar.gz | tar -xz
+sudo mv cam-proxy /usr/local/bin/
+
+# Install systemd unit and start service
+sudo cp systemd/cam-proxy.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now cam-proxy</code></pre>
+          </div>
+        </div>
+
+        <div id="tab-tui" class="tab-pane">
+          <p style="margin-bottom: 12px; color: var(--text-muted);">Discover cameras and generate a complete YAML configuration interactively:</p>
+          <div class="code-block">
+            <button class="code-copy-btn" onclick="copyBlock(this)">Copy</button>
+            <pre><code># Probe local subnet for ONVIF cameras via WS-Discovery
+cam-proxy --scan
+
+# Launch the interactive terminal setup wizard
+cam-proxy --tui</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- API Reference Summary -->
+    <section id="api" style="margin-bottom: 64px;">
+      <h2 class="section-title">HTTP REST API</h2>
+      <p class="section-subtitle">Clean, low-latency endpoints ready for Home Assistant, Scrypted, Frigate, or web dashboards.</p>
+
+      <div class="tabs-wrapper" style="padding: 24px;">
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Endpoint</th>
+                <th>Description</th>
+                <th>Headers / Type</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="badge-method badge-get">GET</span></td>
+                <td><code>/api/v1/cameras/{id}/snapshot</code></td>
+                <td>Coalesced, TTL-cached JPEG snapshot (< 100ms)</td>
+                <td><code>image/jpeg</code></td>
+              </tr>
+              <tr>
+                <td><span class="badge-method badge-get">GET</span></td>
+                <td><code>/api/v1/cameras/{id}/mjpeg</code></td>
+                <td>Continuous multipart MJPEG video stream</td>
+                <td><code>multipart/x-mixed-replace</code></td>
+              </tr>
+              <tr>
+                <td><span class="badge-method badge-post">POST</span></td>
+                <td><code>/api/v1/cameras/{id}/ptz</code></td>
+                <td>Pan/Tilt/Zoom continuous move, stop, or preset recall</td>
+                <td><code>application/json</code></td>
+              </tr>
+              <tr>
+                <td><span class="badge-method badge-get">GET</span></td>
+                <td><code>/api/v1/status</code></td>
+                <td>Gateway uptime, configured cameras, and operational health</td>
+                <td><code>application/json</code></td>
+              </tr>
+              <tr>
+                <td><span class="badge-method badge-get">GET</span></td>
+                <td><code>/metrics</code></td>
+                <td>Prometheus metrics (snapshots, latencies, cache hits)</td>
+                <td><code>text/plain</code></td>
+              </tr>
+              <tr>
+                <td><span class="badge-method badge-get">GET</span></td>
+                <td><code>/openapi.yaml</code></td>
+                <td>Complete OpenAPI 3.1.0 specification</td>
+                <td><code>application/yaml</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container footer-inner">
+      <div>
+        <strong>cam-proxy</strong> — Released under the <a href="https://github.com/smford/cam-proxy/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>.
+      </div>
+      <div>
+        <a href="https://github.com/smford/cam-proxy" target="_blank" rel="noopener">GitHub Repository</a> •
+        <a href="https://github.com/smford/cam-proxy/releases" target="_blank" rel="noopener">Releases</a> •
+        <a href="https://github.com/smford/homebrew-tap" target="_blank" rel="noopener">Homebrew Tap</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    function copySnippet(elementId, btn) {
+      const text = document.getElementById(elementId).innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<span>✓ Copied</span>';
+        setTimeout(() => { btn.innerHTML = orig; }, 2000);
+      });
+    }
+
+    function copyBlock(btn) {
+      const pre = btn.nextElementSibling;
+      navigator.clipboard.writeText(pre.innerText).then(() => {
+        const orig = btn.innerText;
+        btn.innerText = '✓ Copied';
+        setTimeout(() => { btn.innerText = orig; }, 2000);
+      });
+    }
+
+    function switchTab(paneId, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      const pane = document.getElementById(paneId);
+      if (pane) pane.classList.add('active');
+    }
+
+    // Client-side enhancement: fetch latest release tag to ensure real-time accuracy
+    (function fetchLatestRelease() {
+      fetch('https://api.github.com/repos/smford/cam-proxy/releases/latest')
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (!data || !data.tag_name) return;
+          const tag = data.tag_name;
+          const versionNum = tag.replace(/^v/, '');
+
+          const elVersion = document.getElementById('release-version');
+          if (elVersion) elVersion.innerText = tag;
+
+          const elVersionNum = document.getElementById('release-version-number');
+          if (elVersionNum) elVersionNum.innerText = tag;
+
+          // Update download links if tag changed
+          document.querySelectorAll('a[href*="/releases/download/"]').forEach(link => {
+            link.href = link.href.replace(/v[0-9]+\.[0-9]+\.[0-9]+/, tag).replace(/_[0-9]+\.[0-9]+\.[0-9]+_/, '_' + versionNum + '_');
+          });
+        })
+        .catch(() => {});
+    })();
+  </script>
+</body>
+</html>

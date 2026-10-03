@@ -163,3 +163,50 @@ func TestPackagingAndDistribution(t *testing.T) {
 		t.Errorf("expected release workflow to publish Formula/cam-proxy.rb")
 	}
 }
+
+func TestGitHubPagesAndDocumentation(t *testing.T) {
+	root := findRepoRoot(t)
+
+	// 1. Verify docs/index.html exists and is configured for light mode with release details
+	docsHTMLPath := filepath.Join(root, "docs", "index.html")
+	htmlData, err := os.ReadFile(docsHTMLPath)
+	if err != nil {
+		t.Fatalf("failed to read docs/index.html: %v", err)
+	}
+	htmlContent := string(htmlData)
+
+	if !strings.Contains(htmlContent, "color-scheme: light") && !strings.Contains(htmlContent, "color-scheme\" content=\"light\"") {
+		t.Errorf("expected docs/index.html to be explicitly configured for light mode")
+	}
+	if !strings.Contains(htmlContent, "release-version") {
+		t.Errorf("expected docs/index.html to contain release-version element")
+	}
+
+	// 2. Verify scripts/update-docs-version.sh exists and is executable
+	scriptPath := filepath.Join(root, "scripts", "update-docs-version.sh")
+	info, err := os.Stat(scriptPath)
+	if err != nil {
+		t.Fatalf("failed to stat scripts/update-docs-version.sh: %v", err)
+	}
+	if info.Mode()&0111 == 0 {
+		t.Errorf("scripts/update-docs-version.sh is not executable: mode %v", info.Mode())
+	}
+
+	// 3. Verify .github/workflows/pages.yml triggers and permissions
+	pagesWfPath := filepath.Join(root, ".github", "workflows", "pages.yml")
+	pagesData, err := os.ReadFile(pagesWfPath)
+	if err != nil {
+		t.Fatalf("failed to read .github/workflows/pages.yml: %v", err)
+	}
+	pagesContent := string(pagesData)
+
+	if !strings.Contains(pagesContent, "actions/deploy-pages") {
+		t.Errorf("expected pages workflow to deploy pages")
+	}
+	if !strings.Contains(pagesContent, "docs/**") {
+		t.Errorf("expected pages workflow to trigger on docs/** changes")
+	}
+	if !strings.Contains(pagesContent, "release:") {
+		t.Errorf("expected pages workflow to trigger on release")
+	}
+}
