@@ -163,61 +163,227 @@ cp config.example.yaml camstop.yaml
 
 ---
 
-## API Reference
+## API Reference & Examples (`curl` & `wget`)
 
-### 1. Health & Status
-```http
-GET /healthz
-```
-Response:
-```json
-{
-  "camera_count": 2,
-  "status": "ok",
-  "uptime": "12m34s"
-}
-```
+All endpoints are available over HTTP on port `8080` (or your configured port).
 
-### 2. List Configured Cameras
-```http
-GET /api/v1/cameras
-```
+### 1. Health & System Status (`GET /healthz`)
+Inspect daemon health, process uptime, and the number of active cameras.
 
-### 3. On-Demand Snapshot
-```http
-GET /api/v1/cameras/{id}/snapshot
-```
-Returns: Binary JPEG image (`Content-Type: image/jpeg`) with cache-busting headers.
+- **curl**:
+  ```bash
+  curl -s http://localhost:8080/healthz | jq
+  ```
+- **wget**:
+  ```bash
+  wget -q -O- http://localhost:8080/healthz
+  ```
+- **Response**:
+  ```json
+  {
+    "camera_count": 3,
+    "status": "ok",
+    "uptime": "15m42s"
+  }
+  ```
 
-### 4. PTZ Control
-```http
-POST /api/v1/cameras/{id}/ptz
-Content-Type: application/json
-```
+---
 
-**Move (Continuous velocity):**
-```json
-{
-  "action": "move",
-  "pan": 0.5,
-  "tilt": -0.2,
-  "zoom": 0.0
-}
-```
+### 2. List Configured Cameras (`GET /api/v1/cameras`)
+Retrieve metadata, ONVIF addresses, and configuration flags for all cameras.
 
-**Stop:**
-```json
-{
-  "action": "stop"
-}
-```
+- **curl**:
+  ```bash
+  curl -s http://localhost:8080/api/v1/cameras | jq
+  ```
+- **wget**:
+  ```bash
+  wget -q -O- http://localhost:8080/api/v1/cameras
+  ```
+- **Response**:
+  ```json
+  [
+    {
+      "id": "camera1",
+      "name": "Front Porch C216",
+      "address": "192.168.1.160:2020",
+      "snapshot_method": "auto",
+      "events_enabled": false
+    },
+    {
+      "id": "tort1",
+      "name": "Tortoise Terrarium",
+      "address": "192.168.1.12:2020",
+      "snapshot_method": "auto",
+      "events_enabled": false
+    }
+  ]
+  ```
 
-**Recall Preset:**
-```json
-{
-  "action": "preset",
-  "preset_token": "1"
-}
+---
+
+### 3. Capture On-Demand Snapshot (`GET /api/v1/cameras/{id}/snapshot`)
+Grabs a fresh keyframe on demand and serves it directly as a standard binary JPEG (`image/jpeg`).
+
+- **curl**:
+  ```bash
+  # Download to snapshot.jpg
+  curl -s -o snapshot.jpg http://localhost:8080/api/v1/cameras/camera1/snapshot
+
+  # Save with timestamp in filename
+  curl -s -o "camera1_$(date +%Y%m%d_%H%M%S).jpg" http://localhost:8080/api/v1/cameras/camera1/snapshot
+  ```
+- **wget**:
+  ```bash
+  # Download to snapshot.jpg
+  wget -O snapshot.jpg http://localhost:8080/api/v1/cameras/camera1/snapshot
+
+  # Quiet download with timestamp in filename
+  wget -q -O "camera1_$(date +%Y%m%d_%H%M%S).jpg" http://localhost:8080/api/v1/cameras/camera1/snapshot
+  ```
+
+---
+
+### 4. PTZ Control (`POST /api/v1/cameras/{id}/ptz`)
+Send continuous velocity move vectors, halts, or preset recalls to motorized ONVIF Profile S cameras.
+
+#### A. Continuous Move (Pan, Tilt, Zoom)
+Velocity coordinates range from `-1.0` to `1.0`:
+- `pan`: `-1.0` (max speed left) to `1.0` (max speed right)
+- `tilt`: `-1.0` (max speed down) to `1.0` (max speed up)
+- `zoom`: `-1.0` (zoom out) to `1.0` (zoom in)
+
+**Move Left and Up:**
+- **curl**:
+  ```bash
+  curl -s -X POST http://localhost:8080/api/v1/cameras/camera1/ptz \
+    -H "Content-Type: application/json" \
+    -d '{"action":"move","pan":-0.5,"tilt":0.5}'
+  ```
+- **wget**:
+  ```bash
+  wget --header="Content-Type: application/json" \
+    --post-data='{"action":"move","pan":-0.5,"tilt":0.5}' \
+    -q -O- http://localhost:8080/api/v1/cameras/camera1/ptz
+  ```
+
+**Pan Right:**
+- **curl**:
+  ```bash
+  curl -s -X POST http://localhost:8080/api/v1/cameras/camera1/ptz \
+    -H "Content-Type: application/json" \
+    -d '{"action":"move","pan":0.5,"tilt":0.0}'
+  ```
+- **wget**:
+  ```bash
+  wget --header="Content-Type: application/json" \
+    --post-data='{"action":"move","pan":0.5,"tilt":0.0}' \
+    -q -O- http://localhost:8080/api/v1/cameras/camera1/ptz
+  ```
+
+**Tilt Down:**
+- **curl**:
+  ```bash
+  curl -s -X POST http://localhost:8080/api/v1/cameras/camera1/ptz \
+    -H "Content-Type: application/json" \
+    -d '{"action":"move","pan":0.0,"tilt":-0.5}'
+  ```
+- **wget**:
+  ```bash
+  wget --header="Content-Type: application/json" \
+    --post-data='{"action":"move","pan":0.0,"tilt":-0.5}' \
+    -q -O- http://localhost:8080/api/v1/cameras/camera1/ptz
+  ```
+
+**Zoom In:**
+- **curl**:
+  ```bash
+  curl -s -X POST http://localhost:8080/api/v1/cameras/camera1/ptz \
+    -H "Content-Type: application/json" \
+    -d '{"action":"move","zoom":0.5}'
+  ```
+- **wget**:
+  ```bash
+  wget --header="Content-Type: application/json" \
+    --post-data='{"action":"move","zoom":0.5}' \
+    -q -O- http://localhost:8080/api/v1/cameras/camera1/ptz
+  ```
+
+#### B. Stop Motion
+Halts ongoing pan, tilt, or zoom motors immediately.
+
+- **curl**:
+  ```bash
+  curl -s -X POST http://localhost:8080/api/v1/cameras/camera1/ptz \
+    -H "Content-Type: application/json" \
+    -d '{"action":"stop"}'
+  ```
+- **wget**:
+  ```bash
+  wget --header="Content-Type: application/json" \
+    --post-data='{"action":"stop"}' \
+    -q -O- http://localhost:8080/api/v1/cameras/camera1/ptz
+  ```
+
+#### C. Recall Preset Position
+Moves the camera to a saved ONVIF viewpoint / preset token.
+
+- **curl**:
+  ```bash
+  curl -s -X POST http://localhost:8080/api/v1/cameras/camera1/ptz \
+    -H "Content-Type: application/json" \
+    -d '{"action":"preset","preset_token":"1"}'
+  ```
+- **wget**:
+  ```bash
+  wget --header="Content-Type: application/json" \
+    --post-data='{"action":"preset","preset_token":"1"}' \
+    -q -O- http://localhost:8080/api/v1/cameras/camera1/ptz
+  ```
+
+---
+
+### 5. Shell Scripting & Automation Examples
+
+#### Nudge Camera: Move for 1 Second, Then Stop
+- **With curl**:
+  ```bash
+  # Start moving right
+  curl -s -X POST http://localhost:8080/api/v1/cameras/camera1/ptz \
+    -H "Content-Type: application/json" \
+    -d '{"action":"move","pan":0.5}'
+  
+  # Wait 1 second
+  sleep 1
+  
+  # Stop moving
+  curl -s -X POST http://localhost:8080/api/v1/cameras/camera1/ptz \
+    -H "Content-Type: application/json" \
+    -d '{"action":"stop"}'
+  ```
+
+- **With wget**:
+  ```bash
+  # Start moving right
+  wget --header="Content-Type: application/json" \
+    --post-data='{"action":"move","pan":0.5}' \
+    -q -O- http://localhost:8080/api/v1/cameras/camera1/ptz
+  
+  # Wait 1 second
+  sleep 1
+  
+  # Stop moving
+  wget --header="Content-Type: application/json" \
+    --post-data='{"action":"stop"}' \
+    -q -O- http://localhost:8080/api/v1/cameras/camera1/ptz
+  ```
+
+#### Periodic Snapshot Timelapse Loop (every 10 seconds)
+```bash
+while true; do
+  curl -s -o "frame_$(date +%Y%m%d_%H%M%S).jpg" http://localhost:8080/api/v1/cameras/camera1/snapshot
+  sleep 10
+done
 ```
 
 ---
