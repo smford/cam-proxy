@@ -59,10 +59,21 @@ func (m *Manager) Metrics() *metrics.Metrics {
 	return m.metrics
 }
 
-// Start begins background services like event subscriptions.
+// Start begins background services like event subscriptions and MQTT discovery.
 func (m *Manager) Start(ctx context.Context) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+
+	// Publish Home Assistant MQTT discovery on startup for cameras with pull_events enabled
+	if m.publisher != nil {
+		for _, cam := range m.cameras {
+			if cam.Config.PullEvents {
+				if err := m.publisher.PublishDiscovery(cam.Config); err != nil {
+					slog.Warn("failed to publish Home Assistant MQTT discovery", "camera_id", cam.Config.ID, "err", err)
+				}
+			}
+		}
+	}
 
 	for id, cam := range m.cameras {
 		if cam.Config.PullEvents {

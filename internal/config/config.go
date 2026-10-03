@@ -27,13 +27,15 @@ type ServerConfig struct {
 
 // MQTTConfig defines the MQTT broker parameters.
 type MQTTConfig struct {
-	Enabled     bool          `yaml:"enabled"`
-	Broker      string        `yaml:"broker"` // e.g. "tcp://192.168.1.50:1883"
-	ClientID    string        `yaml:"client_id"`
-	Username    string        `yaml:"username"`
-	Password    string        `yaml:"password"`
-	TopicPrefix string        `yaml:"topic_prefix"` // e.g. "cam-proxy/events"
-	KeepAlive   time.Duration `yaml:"keep_alive"`
+	Enabled         bool          `yaml:"enabled"`
+	Broker          string        `yaml:"broker"` // e.g. "tcp://192.168.1.50:1883"
+	ClientID        string        `yaml:"client_id"`
+	Username        string        `yaml:"username"`
+	Password        string        `yaml:"password"`
+	TopicPrefix     string        `yaml:"topic_prefix"` // e.g. "cam-proxy/events"
+	KeepAlive       time.Duration `yaml:"keep_alive"`
+	Discovery       bool          `yaml:"discovery"`                  // Publish Home Assistant auto-discovery configs
+	DiscoveryPrefix string        `yaml:"discovery_prefix,omitempty"` // Home Assistant discovery prefix, default "homeassistant"
 }
 
 // DiscoveryConfig defines WS-Discovery behavior.
@@ -67,11 +69,13 @@ func DefaultConfig() *Config {
 			SnapshotCacheTTL: 1 * time.Second,
 		},
 		MQTT: MQTTConfig{
-			Enabled:     false,
-			Broker:      "tcp://localhost:1883",
-			ClientID:    "cam-proxy-daemon",
-			TopicPrefix: "cam-proxy/events",
-			KeepAlive:   30 * time.Second,
+			Enabled:         false,
+			Broker:          "tcp://localhost:1883",
+			ClientID:        "cam-proxy-daemon",
+			TopicPrefix:     "cam-proxy/events",
+			KeepAlive:       30 * time.Second,
+			Discovery:       true,
+			DiscoveryPrefix: "homeassistant",
 		},
 		Discovery: DiscoveryConfig{
 			Enabled:  false,
@@ -92,6 +96,10 @@ func Load(path string) (*Config, error) {
 
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("unmarshaling config YAML: %w", err)
+	}
+
+	if cfg.MQTT.DiscoveryPrefix == "" {
+		cfg.MQTT.DiscoveryPrefix = "homeassistant"
 	}
 
 	// Normalize camera IDs

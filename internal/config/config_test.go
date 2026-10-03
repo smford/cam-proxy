@@ -158,3 +158,42 @@ cameras:
 		t.Errorf("expected cam_default TTL nil, got %v", camDefault.SnapshotCacheTTL)
 	}
 }
+
+func TestMQTTDiscoveryConfig(t *testing.T) {
+	def := config.DefaultConfig()
+	if !def.MQTT.Discovery {
+		t.Errorf("expected default MQTT discovery true")
+	}
+	if def.MQTT.DiscoveryPrefix != "homeassistant" {
+		t.Errorf("expected default discovery_prefix 'homeassistant', got %q", def.MQTT.DiscoveryPrefix)
+	}
+
+	yamlContent := `
+mqtt:
+  enabled: true
+  discovery: false
+  discovery_prefix: "custom_ha"
+`
+	tmpFile, err := os.CreateTemp("", "cam-proxy-mqtt-*.yaml")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.Write([]byte(yamlContent)); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+	tmpFile.Close()
+
+	cfg, err := config.Load(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.MQTT.Discovery {
+		t.Errorf("expected discovery to be overridden to false")
+	}
+	if cfg.MQTT.DiscoveryPrefix != "custom_ha" {
+		t.Errorf("expected discovery_prefix 'custom_ha', got %q", cfg.MQTT.DiscoveryPrefix)
+	}
+}

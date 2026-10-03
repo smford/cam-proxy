@@ -10,7 +10,7 @@ Instructions, conventions, and architectural context for AI agents working in th
 - **Fast HTTP Snapshots**: Native ONVIF HTTP extraction (<100ms) with fallback to RTSP keyframe capture.
 - **Hardware Protection**: Single-flight request coalescing (`golang.org/x/sync/singleflight`) and configurable short-TTL in-memory frame caching to prevent hardware/socket flooding on low-cost IP cameras.
 - **PTZ Proxying**: Continuous move, stop, and preset recall via ONVIF SOAP services with automatic snapshot cache invalidation.
-- **Event Forwarding**: Subscribes to ONVIF PullPoint event streams and forwards motion/input events over MQTT.
+- **Event Forwarding & Auto-Discovery**: Subscribes to ONVIF PullPoint event streams, forwards motion/tamper/line-crossing events over MQTT, and publishes Home Assistant MQTT auto-discovery payloads on startup.
 - **Network Discovery & Interactive TUI**: WS-Discovery UDP probe to detect local cameras and an interactive Charmbracelet Bubble Tea terminal wizard.
 
 ---
@@ -40,7 +40,7 @@ cam-proxy/
 │   ├── config/          # YAML configuration loading, defaults, normalization, saving
 │   ├── discovery/       # WS-Discovery (UDP SOAP multicast) probe
 │   ├── metrics/         # Prometheus observability metrics collector & registry
-│   ├── mqtt/            # MQTT event publisher
+│   ├── mqtt/            # MQTT event publisher & Home Assistant auto-discovery
 │   ├── onvif/           # SOAP envelopes, WS-Security, Digest auth, PullPoint, PTZ
 │   ├── rtsp/            # RTSP keyframe capture fallback
 │   └── tui/             # Charmbracelet Bubble Tea interactive terminal setup

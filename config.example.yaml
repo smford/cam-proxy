@@ -16,6 +16,8 @@ mqtt:
   password: "mqtt_password"
   topic_prefix: "cam-proxy/events"
   keep_alive: 30s
+  discovery: true                                   # Publish Home Assistant MQTT auto-discovery on startup
+  discovery_prefix: "homeassistant"                 # Home Assistant MQTT discovery prefix
 
 discovery:
   enabled: false

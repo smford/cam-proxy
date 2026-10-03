@@ -459,6 +459,19 @@ Payload format:
 }
 ```
 
+### Home Assistant MQTT Auto-Discovery
+
+When MQTT and discovery are enabled (`discovery: true`, enabled by default), `cam-proxy` automatically publishes Home Assistant MQTT discovery payloads on startup for each camera with `pull_events: true`:
+
+- **Discovery Topics**: `<discovery_prefix>/binary_sensor/cam_proxy_<camera_id>_<event_type>/config` (e.g., `homeassistant/binary_sensor/cam_proxy_front_door_motion/config`)
+- **Automatic Binary Sensors**:
+  - **Motion Detection** (`motion`): `device_class: "motion"`
+  - **Tamper Alert** (`tamper`): `device_class: "tamper"`
+  - **Line Crossing** (`line_cross`): `device_class: "motion"`, `icon: "mdi:vector-line"`
+- **Device Linking & Topology**: Entities are grouped under their respective camera device cards with hardware metadata (`manufacturer`, `model`) and linked to `cam-proxy` via `via_device: "cam-proxy"`.
+- **Zero Configuration**: Discovery messages are published with `retained: true` and QoS 1, ensuring Home Assistant automatically discovers or restores sensor states upon startup or broker reconnection.
+
+
 ---
 
 ## Docker Deployment
