@@ -1,12 +1,14 @@
 package api
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/smford/cam-proxy/internal/camera"
@@ -29,6 +31,8 @@ func RegisterRoutes(mux *http.ServeMux, mgr *camera.Manager, startTime time.Time
 	mux.HandleFunc("GET /api/v1/status", handleStatus(mgr, startTime))
 	mux.HandleFunc("GET /api/v1/cameras", handleListCameras(mgr))
 	mux.HandleFunc("GET /api/v1/cameras/{id}/snapshot", handleSnapshot(mgr))
+	mux.HandleFunc("GET /api/v1/cameras/{id}/mjpeg", handleMJPEG(mgr))
+	mux.HandleFunc("GET /api/v1/cameras/{id}/stream", handleMJPEG(mgr))
 	mux.HandleFunc("POST /api/v1/cameras/{id}/ptz", handlePTZ(mgr))
 	mux.HandleFunc("GET /openapi.yaml", handleOpenAPISpec)
 	mux.HandleFunc("GET /api/v1/openapi.yaml", handleOpenAPISpec)
@@ -125,6 +129,82 @@ func handleSnapshot(mgr *camera.Manager) http.HandlerFunc {
 		w.Header().Set("Expires", "0")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(imgBytes)
+	}
+}
+
+// handleMJPEG streams continuous JPEG snapshots as an HTTP multipart stream (multipart/x-mixed-replace).
+// It supports optional ?fps= parameter (default 2, min 0.1, max 30).
+func handleMJPEG(mgr *camera.Manager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cameraID := r.PathValue("id")
+		cam, err := mgr.GetCamera(cameraID)
+		if err != nil {
+			http.Error(w, "camera not found", http.StatusNotFound)
+			return
+		}
+
+		// Disable response write deadline for long-running streaming connection
+		rc := http.NewResponseController(w)
+		_ = rc.SetWriteDeadline(time.Time{})
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+			return
+		}
+
+		// Parse requested FPS (default 2, bounds: 0.1 to 30)
+		fps := 2.0
+		if fpsStr := r.URL.Query().Get("fps"); fpsStr != "" {
+			if parsed, err := strconv.ParseFloat(fpsStr, 64); err == nil && parsed >= 0.1 {
+				if parsed > 30.0 {
+					parsed = 30.0
+				}
+				fps = parsed
+			}
+		}
+		interval := time.Duration(float64(time.Second) / fps)
+
+		const boundary = "frame"
+		w.Header().Set("Content-Type", "multipart/x-mixed-replace; boundary="+boundary)
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+		w.Header().Set("Connection", "close")
+		w.WriteHeader(http.StatusOK)
+		flusher.Flush()
+
+		ctx := r.Context()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			imgBytes, err := cam.Snapshot(ctx)
+			if err != nil {
+				if errors.Is(err, context.Canceled) || ctx.Err() != nil {
+					return
+				}
+				slog.Warn("failed to fetch snapshot for MJPEG stream", "camera_id", cameraID, "err", err)
+			} else {
+				header := fmt.Sprintf("--%s\r\nContent-Type: image/jpeg\r\nContent-Length: %d\r\n\r\n", boundary, len(imgBytes))
+				if _, err := w.Write([]byte(header)); err != nil {
+					return
+				}
+				if _, err := w.Write(imgBytes); err != nil {
+					return
+				}
+				if _, err := w.Write([]byte("\r\n")); err != nil {
+					return
+				}
+				flusher.Flush()
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+		}
 	}
 }
 

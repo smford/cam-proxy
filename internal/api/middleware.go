@@ -16,9 +16,9 @@ func SecurityHeadersMiddleware(next http.Handler) http.Handler {
 		// Enforce MIME-type sniffing protection
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 
-		// Apply dynamic image cache-control headers to snapshot endpoints
+		// Apply dynamic image cache-control headers to snapshot and stream endpoints
 		cleanPath := strings.TrimSuffix(r.URL.Path, "/")
-		if strings.HasSuffix(cleanPath, "/snapshot") {
+		if strings.HasSuffix(cleanPath, "/snapshot") || strings.HasSuffix(cleanPath, "/mjpeg") || strings.HasSuffix(cleanPath, "/stream") {
 			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 			w.Header().Set("Pragma", "no-cache")
 			w.Header().Set("Expires", "0")

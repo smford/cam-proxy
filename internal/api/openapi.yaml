@@ -141,6 +141,100 @@ paths:
                 type: string
                 example: "failed to capture snapshot: connection refused"
 
+  /api/v1/cameras/{id}/mjpeg:
+    get:
+      tags:
+        - Cameras
+      summary: Stream continuous multipart MJPEG video
+      description: >
+        Streams an ongoing series of JPEG snapshots over an HTTP multipart stream (multipart/x-mixed-replace).
+        Compatible natively with standard browser <img> tags and Home Assistant generic camera entities.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Configured identifier of the target camera
+          schema:
+            type: string
+            example: driveway
+        - name: fps
+          in: query
+          required: false
+          description: Target streaming frame rate (frames per second, default 2, max 30)
+          schema:
+            type: number
+            example: 5
+      responses:
+        "200":
+          description: Continuous multipart MJPEG stream
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: multipart/x-mixed-replace; boundary=frame
+            Cache-Control:
+              schema:
+                type: string
+                example: no-cache, no-store, must-revalidate
+          content:
+            multipart/x-mixed-replace:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Camera not found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: camera not found
+
+  /api/v1/cameras/{id}/stream:
+    get:
+      tags:
+        - Cameras
+      summary: Stream continuous multipart MJPEG video (alias for /mjpeg)
+      description: Alias endpoint for /api/v1/cameras/{id}/mjpeg.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Configured identifier of the target camera
+          schema:
+            type: string
+            example: driveway
+        - name: fps
+          in: query
+          required: false
+          description: Target streaming frame rate (frames per second, default 2, max 30)
+          schema:
+            type: number
+            example: 5
+      responses:
+        "200":
+          description: Continuous multipart MJPEG stream
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: multipart/x-mixed-replace; boundary=frame
+            Cache-Control:
+              schema:
+                type: string
+                example: no-cache, no-store, must-revalidate
+          content:
+            multipart/x-mixed-replace:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Camera not found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: camera not found
+
   /api/v1/cameras/{id}/ptz:
     post:
       tags:

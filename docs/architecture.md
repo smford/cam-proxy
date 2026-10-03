@@ -24,6 +24,7 @@ flowchart TD
             ServeMux["Go 1.22+ ServeMux Router"]
 
             SnapshotEP["GET /api/v1/cameras/{id}/snapshot"]
+            MJPEGEP["GET /api/v1/cameras/{id}/mjpeg"]
             PTZEP["POST /api/v1/cameras/{id}/ptz"]
             StatusEP["GET /healthz & /api/v1/status"]
             MetricsEP["GET /metrics"]
@@ -64,6 +65,7 @@ flowchart TD
     Clients -->|"HTTP Requests"| Middleware
     Middleware --> ServeMux
     ServeMux --> SnapshotEP
+    ServeMux --> MJPEGEP
     ServeMux --> PTZEP
     ServeMux --> StatusEP
     ServeMux --> MetricsEP
@@ -74,6 +76,7 @@ flowchart TD
 
     %% API to Core Engine
     SnapshotEP --> SingleFlight
+    MJPEGEP --> SingleFlight
     SingleFlight -->|"Check Cache"| FrameCache
     FrameCache -->|"Cache Hit: Return Cached JPEG"| SnapshotEP
     FrameCache -->|"Cache Miss: Fetch Once"| CameraManager
@@ -106,8 +109,8 @@ flowchart TD
 ## 2. Core Components & Subsystems
 
 ### 2.1 HTTP Pipeline & Middleware
-- **Routing**: Built on Go 1.22+ standard library `http.ServeMux` using method-prefixed path patterns (`GET /api/v1/cameras/{id}/snapshot`, `POST /api/v1/cameras/{id}/ptz`, `GET /healthz`, `GET /metrics`).
-- **Security Headers Middleware**: Enforces `X-Content-Type-Options: nosniff` across all responses. Dynamic image endpoints (`/snapshot`) enforce cache busting headers (`Cache-Control: no-cache, no-store, must-revalidate`, `Pragma: no-cache`, `Expires: 0`).
+- **Routing**: Built on Go 1.22+ standard library `http.ServeMux` using method-prefixed path patterns (`GET /api/v1/cameras/{id}/snapshot`, `GET /api/v1/cameras/{id}/mjpeg`, `POST /api/v1/cameras/{id}/ptz`, `GET /healthz`, `GET /metrics`).
+- **Security Headers Middleware**: Enforces `X-Content-Type-Options: nosniff` across all responses. Dynamic image and stream endpoints (`/snapshot`, `/mjpeg`, `/stream`) enforce cache busting headers (`Cache-Control: no-cache, no-store, must-revalidate`, `Pragma: no-cache`, `Expires: 0`).
 - **CORS Middleware**: Handles browser preflight `OPTIONS` requests with `204 No Content` and supports configurable allowed origins, methods, headers, and credentials.
 - **Structured Logging**: Standard library `log/slog` structured access logger recording method, path, status, remote address, and duration.
 

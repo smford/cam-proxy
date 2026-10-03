@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -418,5 +419,52 @@ func TestPTZInvalidAction(t *testing.T) {
 
 	if rr.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 Bad Request for invalid action, got %d", rr.Code)
+	}
+}
+
+func TestMJPEGStream(t *testing.T) {
+	mux, _, mockServer := setupTestServer()
+	defer mockServer.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+
+	req := httptest.NewRequest("GET", "/api/v1/cameras/driveway/mjpeg?fps=15", nil).WithContext(ctx)
+	rr := httptest.NewRecorder()
+
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rr.Code)
+	}
+
+	contentType := rr.Header().Get("Content-Type")
+	if !strings.HasPrefix(contentType, "multipart/x-mixed-replace; boundary=") {
+		t.Errorf("expected multipart/x-mixed-replace content-type, got %q", contentType)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "--frame") {
+		t.Errorf("expected multipart boundary '--frame' in stream body")
+	}
+	if !strings.Contains(body, "Content-Type: image/jpeg") {
+		t.Errorf("expected JPEG content type in stream body")
+	}
+	if !strings.Contains(body, "MOCK_JPEG_PAYLOAD") {
+		t.Errorf("expected mock jpeg payload in stream body")
+	}
+}
+
+func TestMJPEGStreamNotFound(t *testing.T) {
+	mux, _, mockServer := setupTestServer()
+	defer mockServer.Close()
+
+	req := httptest.NewRequest("GET", "/api/v1/cameras/nonexistent/mjpeg", nil)
+	rr := httptest.NewRecorder()
+
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected 404 Not Found, got %d", rr.Code)
 	}
 }

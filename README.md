@@ -360,7 +360,21 @@ Grabs a fresh keyframe on demand and serves it directly as a standard binary JPE
 
 ---
 
-### 4. PTZ Control (`POST /api/v1/cameras/{id}/ptz`)
+### 4. Continuous MJPEG Stream (`GET /api/v1/cameras/{id}/mjpeg` or `/stream`)
+Streams an ongoing sequence of JPEG snapshots using standard HTTP multipart streaming (`multipart/x-mixed-replace`). Works natively in web browsers via simple `<img>` tags and integrates effortlessly with Home Assistant generic camera entities:
+
+- **HTML `<img>` Element**:
+  ```html
+  <img src="http://localhost:8080/api/v1/cameras/driveway/mjpeg?fps=5" alt="Live Driveway Stream" />
+  ```
+- **Custom Framerate via `?fps=`** (default: 2 fps, max: 30 fps):
+  ```bash
+  curl -N http://localhost:8080/api/v1/cameras/driveway/mjpeg?fps=5
+  ```
+
+---
+
+### 5. PTZ Control (`POST /api/v1/cameras/{id}/ptz`)
 Send continuous velocity move vectors, halts, or preset recalls to motorized ONVIF Profile S cameras.
 
 #### A. Continuous Move (Pan, Tilt, Zoom)
@@ -459,7 +473,7 @@ Moves the camera to a saved ONVIF viewpoint / preset token.
 
 ---
 
-### 5. Prometheus Observability Metrics (`GET /metrics`)
+### 6. Prometheus Observability Metrics (`GET /metrics`)
 Expose production metrics for Prometheus scraping (snapshot counts by source and status, latency histogram, camera online status gauge, and MQTT event counters):
 
 - **curl**:
@@ -478,7 +492,7 @@ Expose production metrics for Prometheus scraping (snapshot counts by source and
 
 ---
 
-### 6. OpenAPI 3.1.0 Specification (`GET /openapi.yaml`)
+### 7. OpenAPI 3.1.0 Specification (`GET /openapi.yaml`)
 Retrieve the complete machine-readable OpenAPI specification for client generation, API testing, or importing into Swagger UI, Postman, or OWASP ZAP:
 
 - **curl**:
@@ -493,7 +507,7 @@ Retrieve the complete machine-readable OpenAPI specification for client generati
 
 ---
 
-### 7. HTTP Security Headers & CORS Middleware
+### 8. HTTP Security Headers & CORS Middleware
 
 The HTTP API includes built-in security and CORS middleware out of the box:
 
@@ -505,7 +519,7 @@ The HTTP API includes built-in security and CORS middleware out of the box:
 
 ---
 
-### 8. Shell Scripting & Automation Examples
+### 9. Shell Scripting & Automation Examples
 
 #### Nudge Camera: Move for 1 Second, Then Stop
 - **With curl**:
