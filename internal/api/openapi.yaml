@@ -1,0 +1,350 @@
+openapi: 3.1.0
+info:
+  title: cam-proxy Gateway API
+  description: >
+    Production-grade edge camera gateway proxying ONVIF and RTSP IP cameras.
+    Provides fast coalesced JPEG snapshot extraction, PTZ motion controls,
+    per-camera operational health metrics, and Prometheus telemetry.
+  version: 0.3.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local edge gateway server
+
+tags:
+  - name: Health & Observability
+    description: Gateway health, per-camera status, and Prometheus metrics
+  - name: Cameras
+    description: Camera discovery, configuration metadata, and snapshots
+  - name: PTZ
+    description: Pan, Tilt, and Zoom motor operations and preset recall
+
+paths:
+  /healthz:
+    get:
+      tags:
+        - Health & Observability
+      summary: Health check and per-camera operational health
+      description: Returns gateway status, uptime, total camera count, and per-camera operational health metrics.
+      responses:
+        "200":
+          description: Gateway is operational
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthReport"
+
+  /api/v1/status:
+    get:
+      tags:
+        - Health & Observability
+      summary: Detailed system and camera health report
+      description: REST endpoint reporting detailed system and per-camera operational status.
+      responses:
+        "200":
+          description: Operational health status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthReport"
+
+  /metrics:
+    get:
+      tags:
+        - Health & Observability
+      summary: Prometheus metrics exposition endpoint
+      description: Returns production Prometheus telemetry for scraping (snapshot counts, latencies, camera online gauge, MQTT counters).
+      responses:
+        "200":
+          description: Standard Prometheus text format metrics
+          content:
+            text/plain; version=0.0.4:
+              schema:
+                type: string
+                example: |
+                  # HELP cam_proxy_camera_online Camera operational status (1 = online, 0 = offline).
+                  # TYPE cam_proxy_camera_online gauge
+                  cam_proxy_camera_online{camera_id="front_door"} 1
+
+  /api/v1/cameras:
+    get:
+      tags:
+        - Cameras
+      summary: List configured cameras
+      description: Returns configuration metadata, endpoints, and health state for all registered cameras.
+      responses:
+        "200":
+          description: List of camera summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CameraSummary"
+
+  /api/v1/cameras/{id}/snapshot:
+    get:
+      tags:
+        - Cameras
+      summary: Capture or retrieve coalesced JPEG snapshot
+      description: >
+        Captures a fresh still frame using native ONVIF HTTP or RTSP keyframe extraction.
+        Concurrent requests are coalesced via singleflight, and recent frames are reused from memory
+        if within the configured cache TTL.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Configured identifier of the target camera
+          schema:
+            type: string
+            example: front_door
+      responses:
+        "200":
+          description: JPEG still image snapshot
+          headers:
+            Content-Type:
+              schema:
+                type: string
+                example: image/jpeg
+            Cache-Control:
+              schema:
+                type: string
+                example: no-cache, no-store, must-revalidate
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Missing or invalid camera ID
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: missing camera id
+        "404":
+          description: Camera not found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: camera not found
+        "502":
+          description: Failed to capture snapshot from camera hardware
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "failed to capture snapshot: connection refused"
+
+  /api/v1/cameras/{id}/ptz:
+    post:
+      tags:
+        - PTZ
+      summary: Dispatch PTZ motion, stop, or preset recall
+      description: >
+        Executes continuous PTZ movement, halts ongoing motors, or moves the camera to a stored preset position.
+        Automatically invalidates the in-memory snapshot cache upon execution.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Configured identifier of the target camera
+          schema:
+            type: string
+            example: backyard_ptz
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PTZRequest"
+            examples:
+              continuous_move:
+                summary: Move pan and tilt
+                value:
+                  action: move
+                  pan: 0.5
+                  tilt: -0.2
+                  zoom: 0.0
+              stop_motors:
+                summary: Stop all motion
+                value:
+                  action: stop
+              goto_preset:
+                summary: Recall preset position
+                value:
+                  action: preset
+                  preset_token: "1"
+      responses:
+        "200":
+          description: Command successfully dispatched to camera
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+        "400":
+          description: Invalid PTZ payload or missing preset token
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "preset_token is required for preset action"
+        "404":
+          description: Camera not found
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: camera not found
+        "501":
+          description: ONVIF PTZ not configured for this camera
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: ONVIF is not configured for this camera
+        "502":
+          description: PTZ command failed on camera hardware
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "ptz action failed: SOAP fault"
+
+  /openapi.yaml:
+    get:
+      tags:
+        - Health & Observability
+      summary: OpenAPI 3.1.0 specification
+      description: Returns the raw OpenAPI specification defining all gateway endpoints and schemas.
+      responses:
+        "200":
+          description: OpenAPI definition in YAML format
+          content:
+            application/yaml:
+              schema:
+                type: string
+
+components:
+  schemas:
+    HealthReport:
+      type: object
+      required:
+        - status
+        - uptime
+        - camera_count
+        - cameras
+      properties:
+        status:
+          type: string
+          example: ok
+        uptime:
+          type: string
+          example: 1h23m45s
+        camera_count:
+          type: integer
+          example: 2
+        cameras:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/CameraHealth"
+
+    CameraHealth:
+      type: object
+      required:
+        - id
+        - online
+        - last_snapshot_latency_ms
+      properties:
+        id:
+          type: string
+          example: front_door
+        online:
+          type: boolean
+          example: true
+        last_seen:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-10-03T17:15:30Z"
+        last_snapshot_latency_ms:
+          type: integer
+          format: int64
+          example: 45
+        last_error:
+          type: string
+          example: ""
+
+    CameraSummary:
+      type: object
+      required:
+        - id
+        - name
+        - address
+        - snapshot_method
+        - events_enabled
+        - health
+      properties:
+        id:
+          type: string
+          example: front_door
+        name:
+          type: string
+          example: Front Door Porch
+        address:
+          type: string
+          example: "192.168.1.101:80"
+        snapshot_method:
+          type: string
+          enum: [auto, onvif, rtsp]
+          example: auto
+        events_enabled:
+          type: boolean
+          example: true
+        health:
+          $ref: "#/components/schemas/CameraHealth"
+
+    PTZRequest:
+      type: object
+      required:
+        - action
+      properties:
+        action:
+          type: string
+          enum: [move, stop, preset]
+          description: PTZ command action type
+          example: move
+        pan:
+          type: number
+          format: double
+          minimum: -1.0
+          maximum: 1.0
+          description: Pan velocity (-1.0 = full left, 1.0 = full right)
+          example: 0.5
+        tilt:
+          type: number
+          format: double
+          minimum: -1.0
+          maximum: 1.0
+          description: Tilt velocity (-1.0 = full down, 1.0 = full up)
+          example: 0.0
+        zoom:
+          type: number
+          format: double
+          minimum: -1.0
+          maximum: 1.0
+          description: Zoom velocity (-1.0 = full out, 1.0 = full in)
+          example: 0.0
+        preset_token:
+          type: string
+          description: ONVIF preset token to recall (required when action is preset)
+          example: "1"

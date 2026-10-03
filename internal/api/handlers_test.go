@@ -165,6 +165,34 @@ func TestMetricsEndpoint(t *testing.T) {
 	}
 }
 
+func TestOpenAPISpecEndpoint(t *testing.T) {
+	mux, _, mockServer := setupTestServer()
+	defer mockServer.Close()
+
+	for _, endpoint := range []string{"/openapi.yaml", "/api/v1/openapi.yaml"} {
+		req := httptest.NewRequest("GET", endpoint, nil)
+		rr := httptest.NewRecorder()
+		mux.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("expected 200 OK for %s, got %d", endpoint, rr.Code)
+		}
+
+		contentType := rr.Header().Get("Content-Type")
+		if !strings.Contains(contentType, "application/yaml") {
+			t.Errorf("expected application/yaml for %s, got %s", endpoint, contentType)
+		}
+
+		body := rr.Body.String()
+		if !strings.Contains(body, "openapi: 3.1.0") {
+			t.Errorf("expected openapi: 3.1.0 in spec from %s", endpoint)
+		}
+		if !strings.Contains(body, "/api/v1/cameras/{id}/snapshot:") {
+			t.Errorf("expected snapshot endpoint in spec from %s", endpoint)
+		}
+	}
+}
+
 func TestListCameras(t *testing.T) {
 	mux, _, mockServer := setupTestServer()
 	defer mockServer.Close()

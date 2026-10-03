@@ -1,6 +1,7 @@
 package api
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,9 @@ import (
 
 	"github.com/smford/cam-proxy/internal/camera"
 )
+
+//go:embed openapi.yaml
+var openAPISpec []byte
 
 type PTZRequest struct {
 	Action      string  `json:"action"` // "move", "stop", "preset"
@@ -26,9 +30,18 @@ func RegisterRoutes(mux *http.ServeMux, mgr *camera.Manager, startTime time.Time
 	mux.HandleFunc("GET /api/v1/cameras", handleListCameras(mgr))
 	mux.HandleFunc("GET /api/v1/cameras/{id}/snapshot", handleSnapshot(mgr))
 	mux.HandleFunc("POST /api/v1/cameras/{id}/ptz", handlePTZ(mgr))
+	mux.HandleFunc("GET /openapi.yaml", handleOpenAPISpec)
+	mux.HandleFunc("GET /api/v1/openapi.yaml", handleOpenAPISpec)
 	if mgr != nil && mgr.Metrics() != nil {
 		mux.Handle("GET /metrics", mgr.Metrics().Handler())
 	}
+}
+
+// handleOpenAPISpec serves the embedded OpenAPI 3.1.0 specification.
+func handleOpenAPISpec(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(openAPISpec)
 }
 
 // handleHealthz reports system health, camera count, process uptime, and per-camera operational health.

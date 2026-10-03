@@ -23,6 +23,7 @@ flowchart TD
             PTZEP["POST /api/v1/cameras/{id}/ptz"]
             HealthzEP["GET /healthz & /api/v1/status"]
             MetricsEP["GET /metrics"]
+            OpenAPIEP["GET /openapi.yaml"]
         end
 
         Manager["Camera Manager"]
@@ -381,7 +382,22 @@ Expose production metrics for Prometheus scraping (snapshot counts by source and
 
 ---
 
-### 6. Shell Scripting & Automation Examples
+### 6. OpenAPI 3.1.0 Specification (`GET /openapi.yaml`)
+Retrieve the complete machine-readable OpenAPI specification for client generation, API testing, or importing into Swagger UI, Postman, or OWASP ZAP:
+
+- **curl**:
+  ```bash
+  curl -s http://localhost:8080/openapi.yaml
+  ```
+- **wget**:
+  ```bash
+  wget -q -O- http://localhost:8080/openapi.yaml
+  ```
+- Spec file is also accessible directly in the repository at [`api/openapi.yaml`](api/openapi.yaml).
+
+---
+
+### 7. Shell Scripting & Automation Examples
 
 #### Nudge Camera: Move for 1 Second, Then Stop
 - **With curl**:
