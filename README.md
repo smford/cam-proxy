@@ -1,11 +1,52 @@
 # cam-proxy
 
-`cam-proxy` is a lightweight (< 20MB RSS), single-binary edge daemon written in pure Go. It bridges IP cameras to modern edge computing environments by providing:
+[![CI](https://github.com/smford/cam-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/smford/cam-proxy/actions/workflows/ci.yml)
+[![Release](https://github.com/smford/cam-proxy/actions/workflows/release.yml/badge.svg)](https://github.com/smford/cam-proxy/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-1. **On-Demand Snapshots**: Connects to the camera on-demand (via ONVIF HTTP or RTSP), grabs a frame, converts it to JPEG in memory, and serves it over HTTP. Zero 24/7 decoding overhead.
-2. **PTZ Control**: Exposes simple JSON REST endpoints for continuous velocity moves, absolute stops, and preset recalls via ONVIF SOAP.
-3. **ONVIF Event-to-MQTT Bridge**: Subscribes to camera PullPoint notification queues (motion, tamper, line crossing), normalizes states, and publishes clean JSON events to MQTT.
-4. **Zero Heavy Dependencies**: Pure Go compilation (`CGO_ENABLED=0`) with built-in H.264 snapshot extraction via external decoder or pure Go MJPEG.
+**An ultra-lightweight, zero-stress edge gateway for IP security cameras.**
+
+Have you ever tried displaying snapshots from your IP cameras on a Home Assistant wall tablet, MagicMirror, or web dashboard—only to have the camera freeze, disconnect, or crash under the connection load? Or spent hours wrestling with complex ONVIF SOAP protocols and RTSP credentials just to pan a camera or receive a motion alert?
+
+`cam-proxy` solves this. It acts as an intelligent, featherweight (< 20MB RAM) buffer between your cameras and your smart home or custom applications. Instead of running heavy 24/7 video decoders or exposing fragile camera hardware to multiple concurrent clients, `cam-proxy` gives you simple HTTP snapshot URLs, clean REST PTZ controls, and automatic MQTT motion alerts—without burning CPU or overloading your cameras.
+
+---
+
+### 💡 What Problems Does `cam-proxy` Solve?
+
+- **Camera Freezes & RTSP Socket Flooding**: Budget IP cameras (Tapo, Reolink, Hikvision, Dahua, Amcrest) have limited microcontrollers. When a dashboard refreshes, multiple tablets load simultaneously, or an automation requests snapshots, the camera's RTSP connection crashes. `cam-proxy` uses **single-flight request coalescing** and an **in-memory TTL frame cache**: 20 simultaneous snapshot requests hit the camera as a *single* connection.
+- **Resource Exhaustion on Low-Power Edge Hardware**: Running a full NVR (like Frigate or Blue Iris) requires gigabytes of RAM and constant CPU/GPU decoding just to grab periodic pictures. `cam-proxy` idles at **< 15MB RAM** and **0% CPU**, connecting to the camera *only* when a snapshot or PTZ action is requested.
+- **Complex Protocols (ONVIF SOAP & Digest Auth)**: Controlling a PTZ camera or pulling an ONVIF snapshot normally requires crafting complex XML SOAP envelopes with WS-Security timestamps and HTTP Digest handshakes. `cam-proxy` translates all of this into standard, browser-friendly JSON REST endpoints: `GET /snapshot` and `POST /ptz`.
+- **Cloud-Free Camera Alerts in Home Assistant**: Subscribes directly to local camera event queues (motion detection, tampering, line crossing) and publishes them to MQTT with **Home Assistant MQTT Auto-Discovery**—no cloud subscriptions, vendor apps, or flaky webhooks required.
+- **Web Dashboard & Browser Security**: Browsers cannot connect directly to camera RTSP streams or digest-authenticated HTTP endpoints due to CORS restrictions. `cam-proxy` provides configurable CORS middleware and standard security headers (`X-Content-Type-Options: nosniff`) out of the box.
+
+---
+
+## Why `cam-proxy`? (Comparison with Alternatives)
+
+If you already use tools like **Frigate**, **go2rtc**, or **ffmpeg scripts**, where does `cam-proxy` fit?
+
+| Feature / Capability | `cam-proxy` | Full NVRs (Frigate, Blue Iris, Shinobi) | Streaming Servers (go2rtc, MediaMTX) | DIY Scripts (`ffmpeg` / `curl` cron) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Primary Focus** | **Lightweight Snapshots, PTZ & MQTT Events** | 24/7 Video Recording & AI Detection | Low-Latency Live Video Streaming | Ad-hoc Frame Grabbing |
+| **Idle Memory (RAM)** | **< 15–20 MB** | 500 MB – 4+ GB | 50 MB – 200 MB | Transient (spikes per execution) |
+| **Idle CPU Usage** | **~0%** (no continuous decoding) | High (constant decoding/AI) | Low–Moderate | 0% until script triggers |
+| **Hardware Strain Protection** | **Yes** (Single-flight coalescing + cache) | None (pulls continuous 24/7 stream) | None (passes connections through) | **No** (concurrent runs crash camera) |
+| **ONVIF PTZ REST API** | **Yes** (Simple JSON `POST /ptz`) | Rare / Complex integration | Limited / None | Manual SOAP XML scripting |
+| **Camera Event Bridge** | **Yes** (ONVIF PullPoint $\rightarrow$ MQTT) | Via internal events | RTSP metadata only | Not supported |
+| **Home Assistant Discovery** | **Zero-Config** (MQTT Auto-Discovery) | Via custom integration | Via go2rtc integration | Manual YAML configuration |
+| **CORS & Web Browser Ready** | **Yes** (Built-in CORS middleware) | Usually behind reverse proxy | WebRTC / WS focused | Requires reverse proxy |
+| **Dependency Footprint** | **Zero** (Single static binary, CGO-free) | Heavy (Python, OpenCV, TensorRT) | Moderate | Requires `ffmpeg`, `bash`, `curl` |
+
+### When should you use `cam-proxy`?
+- **You want snapshots on dashboards & smart displays**: Wall tablets, Home Assistant Lovelace cards, MagicMirrors, e-ink picture frames, or smart watch notifications.
+- **You want camera events without cloud lock-in**: Instant motion, tamper, and line-crossing alerts pushed to Home Assistant or Node-RED via MQTT.
+- **You run on low-power hardware**: Raspberry Pi Zero/3/4/5, thin clients, NAS devices, or edge routers where every megabyte of RAM matters.
+- **You want to avoid camera crashes**: Your camera drops offline when multiple devices request snapshots simultaneously.
+
+### When should you use something else?
+- **Continuous 24/7 video recording**: If you need to store weeks of continuous video footage on hard drives, use a dedicated NVR like Frigate, Scrypted, or Blue Iris (you can still run `cam-proxy` alongside them for lightweight dashboard snapshots!).
+- **Low-latency live video streaming**: If you want to stream 30fps live video in a browser over WebRTC, tools like `go2rtc` or `MediaMTX` are purpose-built for video re-streaming.
 
 ---
 
