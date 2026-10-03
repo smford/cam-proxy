@@ -508,4 +508,3 @@ func TestManagerCacheTTLConfiguration(t *testing.T) {
 		t.Errorf("expected 0s disabled TTL, got %v", camDisabled.CacheTTL())
 	}
 }
-
