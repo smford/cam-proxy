@@ -9,9 +9,30 @@ LDFLAGS     := -s -w \
                -X main.commit=$(COMMIT) \
                -X main.date=$(DATE)
 
-.PHONY: all build clean test lint run scan sast dast release release-patch release-minor release-major release-tag release-snapshot tag-patch tag-minor tag-major docker-build docker-run
+.PHONY: all help build build-linux-arm64 build-linux-amd64 clean test lint run scan sast dast release release-patch release-minor release-major release-tag release-snapshot tag-patch tag-minor tag-major docker-build docker-run
 
 all: build
+
+help:
+	@echo "cam-proxy development targets:"
+	@echo "  build              Build static binary for local architecture"
+	@echo "  build-linux-arm64  Cross-compile static binary for linux/arm64 (Raspberry Pi)"
+	@echo "  build-linux-amd64  Cross-compile static binary for linux/amd64"
+	@echo "  test               Run test suite with race detector (-race)"
+	@echo "  lint               Verify code formatting (gofmt), go vet, and modules"
+	@echo "  sast               Run Static Application Security Testing (Semgrep OSS)"
+	@echo "  dast               Run Dynamic Application Security Testing (OWASP ZAP)"
+	@echo "  run                Build and run local daemon with config.example.yaml"
+	@echo "  scan               Scan local network for ONVIF and RTSP cameras"
+	@echo "  tui                Launch interactive terminal setup wizard"
+	@echo "  release            Initiate GitHub release (default: next patch, or TAG=...)"
+	@echo "  release-patch      Calculate next patch version, tag, and push to origin"
+	@echo "  release-minor      Calculate next minor version, tag, and push to origin"
+	@echo "  release-major      Calculate next major version, tag, and push to origin"
+	@echo "  release-snapshot   Build local snapshot release archives via GoReleaser"
+	@echo "  docker-build       Build local Docker container image"
+	@echo "  docker-run         Run local Docker container with host networking"
+	@echo "  clean              Remove build artifacts and temporary binaries"
 
 build:
 	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME) ./cmd/cam-proxy
@@ -24,6 +45,18 @@ build-linux-amd64:
 
 test:
 	go test -v -race ./...
+
+lint:
+	@echo "Checking formatting (gofmt -s -l)..."
+	@unformatted=$$(gofmt -s -l .); \
+	if [ -n "$$unformatted" ]; then \
+		echo "Unformatted files found:\n$$unformatted" >&2; \
+		exit 1; \
+	fi
+	@echo "Running go vet..."
+	go vet ./...
+	@echo "Verifying modules..."
+	go mod verify
 
 sast:
 	uvx semgrep scan --config auto
