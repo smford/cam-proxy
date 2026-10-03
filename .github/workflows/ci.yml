@@ -81,7 +81,7 @@ jobs:
           check-latest: true
 
       - name: Build target ${{ matrix.target.os }}/${{ matrix.target.arch }}
-        run: CGO_ENABLED=0 GOOS=${{ matrix.target.os }} GOARCH=${{ matrix.target.arch }} go build -v -o /dev/null ./cmd/camstop
+        run: CGO_ENABLED=0 GOOS=${{ matrix.target.os }} GOARCH=${{ matrix.target.arch }} go build -v -o /dev/null ./cmd/cam-proxy
 
   docker-build:
     name: Docker Container Build
@@ -99,7 +99,7 @@ jobs:
         with:
           context: .
           push: false
-          tags: camstop:test
+          tags: cam-proxy:test
 
   goreleaser-check:
     name: GoReleaser Config Check

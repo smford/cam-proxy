@@ -1,4 +1,4 @@
-# OWASP ZAP baseline scan rules configuration for camstop API
+# OWASP ZAP baseline scan rules configuration for cam-proxy API
 # Format: <rule-id>\t<threshold>\t<comment>
 10020	INFO	(Anti-clickjacking Header - not applicable for headless JSON REST API)
 10038	INFO	(Content Security Policy (CSP) Header Not Set - API does not serve HTML)

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	paho "github.com/eclipse/paho.mqtt.golang"
-	"github.com/smford/camstop/internal/config"
-	"github.com/smford/camstop/internal/onvif"
+	"github.com/smford/cam-proxy/internal/config"
+	"github.com/smford/cam-proxy/internal/onvif"
 )
 
 // Publisher wraps the Paho MQTT client to publish normalized camera events.
@@ -53,7 +53,7 @@ func NewPublisher(cfg config.MQTTConfig) (*Publisher, error) {
 
 	prefix := cfg.TopicPrefix
 	if prefix == "" {
-		prefix = "camtap/events"
+		prefix = "cam-proxy/events"
 	}
 
 	return &Publisher{
@@ -64,7 +64,7 @@ func NewPublisher(cfg config.MQTTConfig) (*Publisher, error) {
 }
 
 // PublishEvent sends a normalized ONVIF event to the MQTT broker.
-// Topic structure: <prefix>/<camera_id>/<event_type> (e.g., camtap/events/front_porch/motion)
+// Topic structure: <prefix>/<camera_id>/<event_type> (e.g., cam-proxy/events/front_porch/motion)
 func (p *Publisher) PublishEvent(event onvif.Event) error {
 	if !p.enabled || p.client == nil {
 		return nil

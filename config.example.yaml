@@ -1,4 +1,4 @@
-# camtap configuration specification
+# cam-proxy configuration specification
 # Lightweight edge camera gateway for snapshots, PTZ, and ONVIF-to-MQTT events.
 
 server:
@@ -10,10 +10,10 @@ server:
 mqtt:
   enabled: true
   broker: "tcp://192.168.1.50:1883"
-  client_id: "camtap-daemon"
+  client_id: "cam-proxy-daemon"
   username: "mqtt_user"
   password: "mqtt_password"
-  topic_prefix: "camtap/events"
+  topic_prefix: "cam-proxy/events"
   keep_alive: 30s
 
 discovery:

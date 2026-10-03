@@ -1,4 +1,4 @@
-# Semgrep ignore rules for camstop
+# Semgrep ignore rules for cam-proxy
 *.test
 *.out
 coverage.out

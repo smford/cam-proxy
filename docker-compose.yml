@@ -1,7 +1,7 @@
 services:
-  camstop:
-    image: ghcr.io/smford/camstop:latest
-    container_name: camstop
+  cam-proxy:
+    image: ghcr.io/smford/cam-proxy:latest
+    container_name: cam-proxy
     restart: unless-stopped
     # host networking is recommended for ONVIF WS-Discovery (multicast UDP 239.255.255.250:3702)
     network_mode: host
@@ -9,6 +9,6 @@ services:
     # ports:
     #   - "8080:8080"
     volumes:
-      - ./camstop.yaml:/etc/camstop/camstop.yaml:ro
+      - ./cam-proxy.yaml:/etc/cam-proxy/cam-proxy.yaml:ro
     environment:
       - TZ=UTC

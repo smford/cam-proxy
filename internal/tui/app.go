@@ -9,9 +9,9 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/smford/camstop/internal/camera"
-	"github.com/smford/camstop/internal/config"
-	"github.com/smford/camstop/internal/discovery"
+	"github.com/smford/cam-proxy/internal/camera"
+	"github.com/smford/cam-proxy/internal/config"
+	"github.com/smford/cam-proxy/internal/discovery"
 )
 
 type viewMode int
@@ -583,7 +583,7 @@ func (m Model) View() string {
 	var b strings.Builder
 
 	// Header
-	b.WriteString(titleStyle.Render(" CAMSTOP CAMERA MANAGER "))
+	b.WriteString(titleStyle.Render(" CAM-PROXY CAMERA MANAGER "))
 	b.WriteString(fmt.Sprintf("  Config: %s\n\n", m.configPath))
 
 	switch m.mode {

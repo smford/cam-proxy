@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/smford/camstop/internal/config"
-	"github.com/smford/camstop/internal/tui"
+	"github.com/smford/cam-proxy/internal/config"
+	"github.com/smford/cam-proxy/internal/tui"
 )
 
 func TestNewTUI(t *testing.T) {
@@ -18,7 +18,7 @@ func TestNewTUI(t *testing.T) {
 		PullEvents: true,
 	}
 
-	model := tui.New("camstop.yaml", cfg)
+	model := tui.New("cam-proxy.yaml", cfg)
 	viewOutput := model.View()
 
 	if viewOutput == "" {
@@ -36,7 +36,7 @@ func TestSelectableOptionsToggleAndSave(t *testing.T) {
 		PullEvents:     false,
 	}
 
-	m := tui.New("camstop.yaml", cfg)
+	m := tui.New("cam-proxy.yaml", cfg)
 
 	// 1. Enter edit mode
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
@@ -86,7 +86,7 @@ func TestReenteringEditDoesNotBleedIntoPullEvents(t *testing.T) {
 		PullEvents: true,
 	}
 
-	m := tui.New("camstop.yaml", cfg)
+	m := tui.New("cam-proxy.yaml", cfg)
 
 	// 1. Enter edit mode first time
 	model, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})

@@ -8,7 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config represents the root configuration for camtap.
+// Config represents the root configuration for cam-proxy.
 type Config struct {
 	Server    ServerConfig            `yaml:"server"`
 	MQTT      MQTTConfig              `yaml:"mqtt"`
@@ -31,7 +31,7 @@ type MQTTConfig struct {
 	ClientID    string        `yaml:"client_id"`
 	Username    string        `yaml:"username"`
 	Password    string        `yaml:"password"`
-	TopicPrefix string        `yaml:"topic_prefix"` // e.g. "camtap/events"
+	TopicPrefix string        `yaml:"topic_prefix"` // e.g. "cam-proxy/events"
 	KeepAlive   time.Duration `yaml:"keep_alive"`
 }
 
@@ -66,8 +66,8 @@ func DefaultConfig() *Config {
 		MQTT: MQTTConfig{
 			Enabled:     false,
 			Broker:      "tcp://localhost:1883",
-			ClientID:    "camtap-daemon",
-			TopicPrefix: "camtap/events",
+			ClientID:    "cam-proxy-daemon",
+			TopicPrefix: "cam-proxy/events",
 			KeepAlive:   30 * time.Second,
 		},
 		Discovery: DiscoveryConfig{

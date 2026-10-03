@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/smford/camstop/internal/camera"
-	"github.com/smford/camstop/internal/config"
+	"github.com/smford/cam-proxy/internal/camera"
+	"github.com/smford/cam-proxy/internal/config"
 )
 
 func TestCameraNoSource(t *testing.T) {

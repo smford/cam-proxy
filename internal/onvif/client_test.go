@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/smford/camstop/internal/onvif"
+	"github.com/smford/cam-proxy/internal/onvif"
 )
 
 func TestBuildWSSecurityHeader(t *testing.T) {

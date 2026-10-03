@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/smford/camstop/internal/api"
-	"github.com/smford/camstop/internal/camera"
-	"github.com/smford/camstop/internal/config"
+	"github.com/smford/cam-proxy/internal/api"
+	"github.com/smford/cam-proxy/internal/camera"
+	"github.com/smford/cam-proxy/internal/config"
 )
 
 func setupTestServer() (*http.ServeMux, *camera.Manager, *httptest.Server) {

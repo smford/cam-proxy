@@ -205,7 +205,7 @@ func captureFFmpeg(ctx context.Context, ffmpegPath, rtspURL string) ([]byte, err
 }
 
 func captureVLC(ctx context.Context, vlcPath, rtspURL string) ([]byte, error) {
-	tmpDir, err := os.MkdirTemp("", "camstop-snap-*")
+	tmpDir, err := os.MkdirTemp("", "cam-proxy-snap-*")
 	if err != nil {
 		return nil, fmt.Errorf("creating temp directory: %w", err)
 	}

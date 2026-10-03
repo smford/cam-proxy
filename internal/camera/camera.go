@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/smford/camstop/internal/config"
-	"github.com/smford/camstop/internal/onvif"
-	"github.com/smford/camstop/internal/rtsp"
+	"github.com/smford/cam-proxy/internal/config"
+	"github.com/smford/cam-proxy/internal/onvif"
+	"github.com/smford/cam-proxy/internal/rtsp"
 )
 
 var (

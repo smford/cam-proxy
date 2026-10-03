@@ -4,17 +4,17 @@ FROM alpine:3.24
 RUN apk add --no-cache ca-certificates tzdata ffmpeg
 
 # Create non-root user and configuration directory
-RUN addgroup -S camstop && adduser -S camstop -G camstop && \
-    mkdir -p /etc/camstop && \
-    chown -R camstop:camstop /etc/camstop
+RUN addgroup -S cam-proxy && adduser -S cam-proxy -G cam-proxy && \
+    mkdir -p /etc/cam-proxy && \
+    chown -R cam-proxy:cam-proxy /etc/cam-proxy
 
 ARG TARGETPLATFORM
-COPY ${TARGETPLATFORM}/camstop /usr/local/bin/camstop
+COPY ${TARGETPLATFORM}/cam-proxy /usr/local/bin/cam-proxy
 
-USER camstop
-WORKDIR /etc/camstop
+USER cam-proxy
+WORKDIR /etc/cam-proxy
 
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/local/bin/camstop"]
-CMD ["-config", "/etc/camstop/camstop.yaml"]
+ENTRYPOINT ["/usr/local/bin/cam-proxy"]
+CMD ["-config", "/etc/cam-proxy/cam-proxy.yaml"]

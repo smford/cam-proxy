@@ -1,6 +1,6 @@
-# camstop
+# cam-proxy
 
-`camstop` is a lightweight (< 20MB RSS), single-binary edge daemon written in pure Go. It bridges IP cameras to modern edge computing environments by providing:
+`cam-proxy` is a lightweight (< 20MB RSS), single-binary edge daemon written in pure Go. It bridges IP cameras to modern edge computing environments by providing:
 
 1. **On-Demand Snapshots**: Connects to the camera on-demand (via ONVIF HTTP or RTSP), grabs a frame, converts it to JPEG in memory, and serves it over HTTP. Zero 24/7 decoding overhead.
 2. **PTZ Control**: Exposes simple JSON REST endpoints for continuous velocity moves, absolute stops, and preset recalls via ONVIF SOAP.
@@ -17,7 +17,7 @@ flowchart TD
         HTTPClients["HTTP Clients / Frontends"]
     end
 
-    subgraph Daemon["camstop daemon"]
+    subgraph Daemon["cam-proxy daemon"]
         subgraph API["Go 1.22+ net/http API"]
             SnapshotEP["GET /api/v1/cameras/{id}/snapshot"]
             PTZEP["POST /api/v1/cameras/{id}/ptz"]
@@ -68,17 +68,17 @@ flowchart TD
 
 ## Network Camera Discovery (`--scan`)
 
-`camstop` can automatically scan your local network interfaces for ONVIF cameras (via WS-Discovery multicast `239.255.255.250:3702`) and active RTSP video streams (port 554/8554 sweep):
+`cam-proxy` can automatically scan your local network interfaces for ONVIF cameras (via WS-Discovery multicast `239.255.255.250:3702`) and active RTSP video streams (port 554/8554 sweep):
 
 ```bash
 # Scan local network
-./camstop --scan
+./cam-proxy --scan
 
 # Scan with custom timeout
-./camstop --scan --scan-timeout 2s
+./cam-proxy --scan --scan-timeout 2s
 
 # Scan and generate ready-to-use YAML configuration block
-./camstop --scan --generate-config >> camstop.yaml
+./cam-proxy --scan --generate-config >> cam-proxy.yaml
 ```
 
 **Example Output:**
@@ -101,14 +101,14 @@ Launch a full terminal user interface to browse detected cameras, inspect live d
 
 ```bash
 # Launch interactive TUI
-./camstop --tui
+./cam-proxy --tui
 
 # Or via make
 make tui
 ```
 
 ```text
- CAMSTOP CAMERA MANAGER   Config: camstop.yaml
+ CAM-PROXY CAMERA MANAGER   Config: cam-proxy.yaml
 
   [1. Configured (2)]   2. Discovered (2)   [Tab] switch view
 
@@ -129,7 +129,7 @@ make tui
 - **`[e]` / `[Enter]`**: Edit highlighted camera credentials, endpoints, and event options.
 - **`[d]`**: Delete selected camera from configuration.
 - **`[t]`**: Test live camera connectivity and snapshot capture.
-- **`[w]`**: Save/write updated configuration directly to `camstop.yaml`.
+- **`[w]`**: Save/write updated configuration directly to `cam-proxy.yaml`.
 - **`[q]` / `[Ctrl+C]`**: Quit TUI.
 
 ---
@@ -149,16 +149,16 @@ make build-linux-arm64
 ### 2. Auto-Discover or Configure
 Auto-generate configuration from discovered cameras:
 ```bash
-./camstop --scan --generate-config > camstop.yaml
+./cam-proxy --scan --generate-config > cam-proxy.yaml
 ```
-Or copy [config.example.yaml](file:///Users/asc/git/camstop/config.example.yaml):
+Or copy [config.example.yaml](file:///Users/asc/git/cam-proxy/config.example.yaml):
 ```bash
-cp config.example.yaml camstop.yaml
+cp config.example.yaml cam-proxy.yaml
 ```
 
 ### 3. Run
 ```bash
-./camstop -config camstop.yaml -log-level debug
+./cam-proxy -config cam-proxy.yaml -log-level debug
 ```
 
 ---
@@ -390,9 +390,9 @@ done
 
 ## MQTT Event Bridge
 
-When `pull_events: true` is enabled on a camera, `camstop` subscribes to the camera's ONVIF PullPoint notification queue. Detected alerts are normalized and published to:
+When `pull_events: true` is enabled on a camera, `cam-proxy` subscribes to the camera's ONVIF PullPoint notification queue. Detected alerts are normalized and published to:
 
-`<topic_prefix>/<camera_id>/<event_type>` (e.g. `camstop/events/front_door/motion`)
+`<topic_prefix>/<camera_id>/<event_type>` (e.g. `cam-proxy/events/front_door/motion`)
 
 Payload format:
 ```json
@@ -409,16 +409,16 @@ Payload format:
 
 ## Docker Deployment
 
-`camstop` provides official multi-architecture Docker images (`linux/amd64` and `linux/arm64`) with `ffmpeg` and `ca-certificates` pre-installed for seamless H.264/H.265 RTSP snapshot extraction.
+`cam-proxy` provides official multi-architecture Docker images (`linux/amd64` and `linux/arm64`) with `ffmpeg` and `ca-certificates` pre-installed for seamless H.264/H.265 RTSP snapshot extraction.
 
 ### 1. Run with Docker CLI
 ```bash
 docker run -d \
-  --name camstop \
+  --name cam-proxy \
   --restart unless-stopped \
   --network host \
-  -v $(pwd)/camstop.yaml:/etc/camstop/camstop.yaml:ro \
-  ghcr.io/smford/camstop:latest
+  -v $(pwd)/cam-proxy.yaml:/etc/cam-proxy/cam-proxy.yaml:ro \
+  ghcr.io/smford/cam-proxy:latest
 ```
 
 > [!NOTE]
@@ -430,13 +430,13 @@ A [`docker-compose.yml`](docker-compose.yml) is included in the repository:
 
 ```yaml
 services:
-  camstop:
-    image: ghcr.io/smford/camstop:latest
-    container_name: camstop
+  cam-proxy:
+    image: ghcr.io/smford/cam-proxy:latest
+    container_name: cam-proxy
     restart: unless-stopped
     network_mode: host
     volumes:
-      - ./camstop.yaml:/etc/camstop/camstop.yaml:ro
+      - ./cam-proxy.yaml:/etc/cam-proxy/cam-proxy.yaml:ro
     environment:
       - TZ=UTC
 ```
@@ -452,7 +452,7 @@ docker compose up -d
 make docker-build
 
 # Or using Docker directly
-docker build -t camstop:latest .
+docker build -t cam-proxy:latest .
 ```
 
 ---
@@ -473,10 +473,10 @@ Whenever a Git tag matching `v*.*.*` is pushed to GitHub, the `.github/workflows
 
 2. **Multi-Architecture Container Images**:
    - Pushed directly to GitHub Container Registry (`ghcr.io`):
-     - `ghcr.io/smford/camstop:latest`
-     - `ghcr.io/smford/camstop:vX.Y.Z`
-     - `ghcr.io/smford/camstop:vX.Y`
-     - `ghcr.io/smford/camstop:vX`
+     - `ghcr.io/smford/cam-proxy:latest`
+     - `ghcr.io/smford/cam-proxy:vX.Y.Z`
+     - `ghcr.io/smford/cam-proxy:vX.Y`
+     - `ghcr.io/smford/cam-proxy:vX`
    - Supporting both `linux/amd64` and `linux/arm64`.
 
 ### Creating a Release (Manual)
@@ -495,7 +495,7 @@ git push origin v0.3.0
 
 ## Dependabot & Automated Release Pipeline
 
-`camstop` is configured with an automated, weekly dependency maintenance pipeline:
+`cam-proxy` is configured with an automated, weekly dependency maintenance pipeline:
 
 1. **Weekly Scheduled Updates**:
    - Dependabot checks for dependency updates **once a week** (Mondays at 06:00 UTC).
@@ -519,13 +519,13 @@ git push origin v0.3.0
 4. **Automated Release on Merge**:
    - When a Dependabot PR merges onto `main`, the `.github/workflows/dependabot-release.yml` workflow triggers automatically.
    - It calculates the next patch version (e.g. `v0.2.0` -> `v0.2.1`), creates and pushes the Git tag, and invokes GoReleaser.
-   - The new release binaries and multi-architecture Docker containers (`ghcr.io/smford/camstop:vX.Y.Z` and `:latest`) are published immediately without manual intervention.
+   - The new release binaries and multi-architecture Docker containers (`ghcr.io/smford/cam-proxy:vX.Y.Z` and `:latest`) are published immediately without manual intervention.
 
 ---
 
 ## Static Application Security Testing (SAST)
 
-`camstop` incorporates a dual-layer Static Application Security Testing (SAST) strategy automated via [`.github/workflows/sast.yml`](.github/workflows/sast.yml) running on every push to `main`, every pull request, and a weekly scheduled scan (Mondays at 07:00 UTC):
+`cam-proxy` incorporates a dual-layer Static Application Security Testing (SAST) strategy automated via [`.github/workflows/sast.yml`](.github/workflows/sast.yml) running on every push to `main`, every pull request, and a weekly scheduled scan (Mondays at 07:00 UTC):
 
 | SAST Tool | Role | Strengths | Trigger / Output |
 | :--- | :--- | :--- | :--- |
@@ -546,21 +546,21 @@ uvx semgrep scan --config auto
 
 ## Dynamic Application Security Testing (DAST)
 
-`camstop` runs automated Dynamic Application Security Testing (DAST) via [`.github/workflows/dast.yml`](.github/workflows/dast.yml) on push to `main`, pull requests, weekly scheduled runs (Mondays at 08:00 UTC), or manual `workflow_dispatch`:
+`cam-proxy` runs automated Dynamic Application Security Testing (DAST) via [`.github/workflows/dast.yml`](.github/workflows/dast.yml) on push to `main`, pull requests, weekly scheduled runs (Mondays at 08:00 UTC), or manual `workflow_dispatch`:
 
 1. **Service Container Spin-Up**:
-   - Compiles and packages `camstop` into a test container image (`camstop:dast`).
-   - Launches `camstop` as a background service container mounted with a lightweight test configuration ([`.zap/dast-config.yaml`](.zap/dast-config.yaml)).
+   - Compiles and packages `cam-proxy` into a test container image (`cam-proxy:dast`).
+   - Launches `cam-proxy` as a background service container mounted with a lightweight test configuration ([`.zap/dast-config.yaml`](.zap/dast-config.yaml)).
    - Polls `GET /healthz` until the HTTP daemon is fully initialized and reporting healthy status.
 
 2. **OWASP ZAP Baseline Scan**:
-   - Executes the official [`zaproxy/action-baseline`](https://github.com/zaproxy/action-baseline) container targeting the running `camstop` daemon at `http://localhost:8080`.
+   - Executes the official [`zaproxy/action-baseline`](https://github.com/zaproxy/action-baseline) container targeting the running `cam-proxy` daemon at `http://localhost:8080`.
    - Actively spiders API endpoints (`/healthz`, `/api/v1/cameras`, `/api/v1/cameras/{id}/snapshot`, `/api/v1/cameras/{id}/ptz`) and passively evaluates HTTP responses against OWASP Top 10 vulnerabilities.
    - Applies API-tailored rule overrides defined in [`.zap/rules.tsv`](.zap/rules.tsv).
    - Generates comprehensive HTML and Markdown security audit reports stored as GitHub Actions artifacts (`zap-baseline-report`).
 
 ### Local DAST Scanning
-Spin up `camstop` and run the OWASP ZAP Baseline scan locally:
+Spin up `cam-proxy` and run the OWASP ZAP Baseline scan locally:
 ```bash
 make dast
 ```

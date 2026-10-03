@@ -389,7 +389,7 @@ func scanRTSP(ctx context.Context, timeout time.Duration, ports []int) ([]Discov
 
 				// RTSP ping
 				_ = conn.SetDeadline(time.Now().Add(500 * time.Millisecond))
-				req := fmt.Sprintf("OPTIONS rtsp://%s/ RTSP/1.0\r\nCSeq: 1\r\nUser-Agent: camstop\r\n\r\n", addr)
+				req := fmt.Sprintf("OPTIONS rtsp://%s/ RTSP/1.0\r\nCSeq: 1\r\nUser-Agent: cam-proxy\r\n\r\n", addr)
 				if _, err := conn.Write([]byte(req)); err != nil {
 					return
 				}
@@ -565,7 +565,7 @@ func PrintTable(devices []DiscoveredDevice) {
 // GenerateSampleConfig prints a ready-to-use YAML configuration block for the detected cameras.
 func GenerateSampleConfig(devices []DiscoveredDevice) string {
 	var b strings.Builder
-	b.WriteString("# Generated camstop camera definitions\ncameras:\n")
+	b.WriteString("# Generated cam-proxy camera definitions\ncameras:\n")
 
 	for i, d := range devices {
 		id := fmt.Sprintf("cam_%s", strings.ReplaceAll(d.IP, ".", "_"))

@@ -11,12 +11,12 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/smford/camstop/internal/api"
-	"github.com/smford/camstop/internal/camera"
-	"github.com/smford/camstop/internal/config"
-	"github.com/smford/camstop/internal/discovery"
-	"github.com/smford/camstop/internal/mqtt"
-	"github.com/smford/camstop/internal/tui"
+	"github.com/smford/cam-proxy/internal/api"
+	"github.com/smford/cam-proxy/internal/camera"
+	"github.com/smford/cam-proxy/internal/config"
+	"github.com/smford/cam-proxy/internal/discovery"
+	"github.com/smford/cam-proxy/internal/mqtt"
+	"github.com/smford/cam-proxy/internal/tui"
 )
 
 // Injected by ldflags during build / release
@@ -27,7 +27,7 @@ var (
 )
 
 func main() {
-	configPath := flag.String("config", "camtap.yaml", "Path to configuration file")
+	configPath := flag.String("config", "cam-proxy.yaml", "Path to configuration file")
 	showVersion := flag.Bool("version", false, "Print version information and exit")
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 	scanNetwork := flag.Bool("scan", false, "Scan local network for ONVIF and RTSP cameras")
@@ -37,20 +37,23 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("camtap version %s (commit: %s, built at: %s)\n", version, commit, date)
+		fmt.Printf("cam-proxy version %s (commit: %s, built at: %s)\n", version, commit, date)
 		os.Exit(0)
 	}
 
+	// Interactive TUI mode
 	if *startTUI {
 		runTUI(*configPath)
 		os.Exit(0)
 	}
 
+	// Network scanning mode
 	if *scanNetwork {
 		runScan(*scanTimeout, *genConfig)
 		os.Exit(0)
 	}
 
+	// Daemon mode
 	runDaemon(*configPath, *logLevel)
 }
 
@@ -58,6 +61,8 @@ func runTUI(configPath string) {
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		if _, err := os.Stat("camstop.yaml"); err == nil {
 			configPath = "camstop.yaml"
+		} else if _, err := os.Stat("camtap.yaml"); err == nil {
+			configPath = "camtap.yaml"
 		} else if _, err := os.Stat("config.yaml"); err == nil {
 			configPath = "config.yaml"
 		}
@@ -104,7 +109,7 @@ func runScan(timeout time.Duration, generateConfig bool) {
 		if generateConfig {
 			fmt.Println(discovery.GenerateSampleConfig(devices))
 		} else {
-			fmt.Println("Tip: Run with --generate-config to generate ready-to-use YAML configuration.")
+			fmt.Println("Tip: Run 'cam-proxy --scan --generate-config' to generate ready-to-use YAML configuration.")
 		}
 	}
 }
@@ -125,15 +130,18 @@ func runDaemon(configPath, logLevelStr string) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 	slog.SetDefault(logger)
 
-	slog.Info("starting camtap edge daemon",
+	slog.Info("starting cam-proxy edge daemon",
 		"version", version,
 		"commit", commit,
 		"built_at", date,
 	)
 
+	// Fallback to camstop.yaml, camtap.yaml, or config.yaml if cam-proxy.yaml doesn't exist
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		if _, err := os.Stat("camstop.yaml"); err == nil {
 			configPath = "camstop.yaml"
+		} else if _, err := os.Stat("camtap.yaml"); err == nil {
+			configPath = "camtap.yaml"
 		} else if _, err := os.Stat("config.yaml"); err == nil {
 			configPath = "config.yaml"
 		}
@@ -190,5 +198,5 @@ func runDaemon(configPath, logLevelStr string) {
 		slog.Error("HTTP server shutdown error", "err", err)
 	}
 
-	slog.Info("camtap daemon terminated cleanly")
+	slog.Info("cam-proxy daemon terminated cleanly")
 }

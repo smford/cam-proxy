@@ -1,5 +1,5 @@
-BINARY_NAME := camstop
-MODULE      := github.com/smford/camstop
+BINARY_NAME := cam-proxy
+MODULE      := github.com/smford/cam-proxy
 VERSION     ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 COMMIT      ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE        ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -14,13 +14,13 @@ LDFLAGS     := -s -w \
 all: build
 
 build:
-	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME) ./cmd/camstop
+	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME) ./cmd/cam-proxy
 
 build-linux-arm64:
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME)-linux-arm64 ./cmd/camstop
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME)-linux-arm64 ./cmd/cam-proxy
 
 build-linux-amd64:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME)-linux-amd64 ./cmd/camstop
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME)-linux-amd64 ./cmd/cam-proxy
 
 test:
 	go test -v -race ./...
@@ -29,13 +29,13 @@ sast:
 	uvx semgrep scan --config auto
 
 dast: docker-build
-	docker run -d --name camstop-dast-local --rm -p 8080:8080 -v $$(pwd)/.zap/dast-config.yaml:/etc/camstop/camstop.yaml:ro $(BINARY_NAME):latest
-	@echo "Waiting for camstop to start..."
+	docker run -d --name cam-proxy-dast-local --rm -p 8080:8080 -v $$(pwd)/.zap/dast-config.yaml:/etc/cam-proxy/cam-proxy.yaml:ro $(BINARY_NAME):latest
+	@echo "Waiting for cam-proxy to start..."
 	@sleep 2
-	@curl -sf http://127.0.0.1:8080/healthz || (docker stop camstop-dast-local && exit 1)
+	@curl -sf http://127.0.0.1:8080/healthz || (docker stop cam-proxy-dast-local && exit 1)
 	@echo "Running OWASP ZAP Baseline Scan..."
 	docker run --rm --network host -v $$(pwd)/.zap:/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://localhost:8080 -c rules.tsv -m 3 || true
-	docker stop camstop-dast-local
+	docker stop cam-proxy-dast-local
 
 scan: build
 	./$(BINARY_NAME) --scan
@@ -44,7 +44,7 @@ tui: build
 	./$(BINARY_NAME) --tui
 
 clean:
-	rm -f $(BINARY_NAME) $(BINARY_NAME)-* camtap camtap-* coverage.out
+	rm -f $(BINARY_NAME) $(BINARY_NAME)-* camstop camstop-* camtap camtap-* coverage.out
 
 run: build
 	./$(BINARY_NAME) -config config.example.yaml -log-level debug
@@ -54,7 +54,7 @@ docker-build:
 
 docker-run:
 	docker run --rm -it --network host \
-		-v $$(pwd)/camstop.yaml:/etc/camstop/camstop.yaml:ro \
+		-v $$(pwd)/cam-proxy.yaml:/etc/cam-proxy/cam-proxy.yaml:ro \
 		$(BINARY_NAME):latest
 
 release-snapshot:

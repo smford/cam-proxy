@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/smford/camstop/internal/config"
-	"github.com/smford/camstop/internal/mqtt"
-	"github.com/smford/camstop/internal/onvif"
+	"github.com/smford/cam-proxy/internal/config"
+	"github.com/smford/cam-proxy/internal/mqtt"
+	"github.com/smford/cam-proxy/internal/onvif"
 )
 
 // Manager coordinates all configured cameras.

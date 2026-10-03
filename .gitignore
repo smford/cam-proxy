@@ -1,4 +1,6 @@
 # Binaries
+/cam-proxy
+/cam-proxy-*
 /camstop
 /camstop-*
 /camtap
@@ -26,6 +28,8 @@ coverage.html
 # Local configs and builds
 dist/
 build/
+cam-proxy.yaml
+cam-proxy.local.yaml
 camstop.yaml
 camtap.yaml
 camtap.local.yaml

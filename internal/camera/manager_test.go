@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/smford/camstop/internal/camera"
-	"github.com/smford/camstop/internal/config"
+	"github.com/smford/cam-proxy/internal/camera"
+	"github.com/smford/cam-proxy/internal/config"
 )
 
 func TestManagerOperations(t *testing.T) {

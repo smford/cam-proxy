@@ -1,4 +1,4 @@
-module github.com/smford/camstop
+module github.com/smford/cam-proxy
 
 go 1.26.0
 

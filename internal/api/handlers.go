@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/smford/camstop/internal/camera"
+	"github.com/smford/cam-proxy/internal/camera"
 )
 
 type PTZRequest struct {

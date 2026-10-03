@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/smford/camstop/internal/onvif"
+	"github.com/smford/cam-proxy/internal/onvif"
 )
 
 func TestDigestTransportRoundTrip(t *testing.T) {

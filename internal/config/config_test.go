@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/smford/camstop/internal/config"
+	"github.com/smford/cam-proxy/internal/config"
 )
 
 func TestLoadConfig(t *testing.T) {
@@ -75,7 +75,7 @@ cameras:
 }
 
 func TestSaveConfig(t *testing.T) {
-	tmpFile, err := os.CreateTemp("", "camstop-save-*.yaml")
+	tmpFile, err := os.CreateTemp("", "cam-proxy-save-*.yaml")
 	if err != nil {
 		t.Fatalf("failed to create temp file: %v", err)
 	}

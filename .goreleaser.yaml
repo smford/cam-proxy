@@ -1,15 +1,15 @@
 version: 2
 
-project_name: camstop
+project_name: cam-proxy
 
 before:
   hooks:
     - go mod tidy
 
 builds:
-  - id: camstop
-    main: ./cmd/camstop
-    binary: camstop
+  - id: cam-proxy
+    main: ./cmd/cam-proxy
+    binary: cam-proxy
     env:
       - CGO_ENABLED=0
     goos:
@@ -36,9 +36,9 @@ archives:
       - config.example.yaml
 
 dockers_v2:
-  - id: camstop
+  - id: cam-proxy
     images:
-      - "ghcr.io/smford/camstop"
+      - "ghcr.io/smford/cam-proxy"
     tags:
       - "latest"
       - "{{ .Tag }}"
@@ -64,11 +64,11 @@ changelog:
 release:
   github:
     owner: smford
-    name: camstop
+    name: cam-proxy
   draft: false
   prerelease: auto
   mode: replace
   header: |
-    ## camstop {{ .Tag }} ({{ .Date }})
+    ## cam-proxy {{ .Tag }} ({{ .Date }})
 
-    Welcome to the latest release of `camstop`!
+    Welcome to the latest release of `cam-proxy`!

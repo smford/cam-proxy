@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/smford/camstop/internal/rtsp"
+	"github.com/smford/cam-proxy/internal/rtsp"
 )
 
 func TestCaptureSnapshotInvalidURL(t *testing.T) {
