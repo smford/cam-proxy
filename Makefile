@@ -9,7 +9,7 @@ LDFLAGS     := -s -w \
                -X main.commit=$(COMMIT) \
                -X main.date=$(DATE)
 
-.PHONY: all help build build-linux-arm64 build-linux-amd64 clean test lint shellcheck run scan sast dast release release-patch release-minor release-major release-tag release-snapshot tag-patch tag-minor tag-major docker-build docker-run
+.PHONY: all help build build-linux-arm64 build-linux-amd64 clean test lint shellcheck pre-commit run scan sast dast release release-patch release-minor release-major release-tag release-snapshot tag-patch tag-minor tag-major docker-build docker-run
 
 all: build
 
@@ -20,6 +20,8 @@ help:
 	@echo "  build-linux-amd64  Cross-compile static binary for linux/amd64"
 	@echo "  test               Run test suite with race detector (-race)"
 	@echo "  lint               Verify code formatting (gofmt), go vet, and modules"
+	@echo "  shellcheck         Run ShellCheck on shell scripts"
+	@echo "  pre-commit         Run pre-commit hooks on all files"
 	@echo "  sast               Run Static Application Security Testing (Semgrep OSS)"
 	@echo "  dast               Run Dynamic Application Security Testing (OWASP ZAP)"
 	@echo "  run                Build and run local daemon with config.example.yaml"
@@ -65,6 +67,16 @@ lint:
 shellcheck:
 	@echo "Running shellcheck on shell scripts..."
 	shellcheck ha-addon/cam-proxy/run.sh scripts/*.sh
+
+pre-commit:
+	@if command -v pre-commit >/dev/null 2>&1; then \
+		pre-commit run --all-files; \
+	elif command -v uvx >/dev/null 2>&1; then \
+		uvx pre-commit run --all-files; \
+	else \
+		echo "Error: neither pre-commit nor uvx found" >&2; \
+		exit 1; \
+	fi
 
 sast:
 	uvx semgrep scan --config auto

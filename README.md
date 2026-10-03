@@ -540,10 +540,10 @@ The HTTP API includes built-in security and CORS middleware out of the box:
   curl -s -X POST http://localhost:8080/api/v1/cameras/camera1/ptz \
     -H "Content-Type: application/json" \
     -d '{"action":"move","pan":0.5}'
-  
+
   # Wait 1 second
   sleep 1
-  
+
   # Stop moving
   curl -s -X POST http://localhost:8080/api/v1/cameras/camera1/ptz \
     -H "Content-Type: application/json" \
@@ -556,10 +556,10 @@ The HTTP API includes built-in security and CORS middleware out of the box:
   wget --header="Content-Type: application/json" \
     --post-data='{"action":"move","pan":0.5}' \
     -q -O- http://localhost:8080/api/v1/cameras/camera1/ptz
-  
+
   # Wait 1 second
   sleep 1
-  
+
   # Stop moving
   wget --header="Content-Type: application/json" \
     --post-data='{"action":"stop"}' \

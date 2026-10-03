@@ -419,3 +419,57 @@ func TestShellCheckWorkflow(t *testing.T) {
 		}
 	}
 }
+
+func TestPreCommitConfig(t *testing.T) {
+	root := findRepoRoot(t)
+
+	// 1. Verify .pre-commit-config.yaml exists
+	configPath := filepath.Join(root, ".pre-commit-config.yaml")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("failed to read .pre-commit-config.yaml: %v", err)
+	}
+
+	// 2. Parse YAML
+	var config struct {
+		Repos []struct {
+			Repo  string `yaml:"repo"`
+			Rev   string `yaml:"rev"`
+			Hooks []struct {
+				ID string `yaml:"id"`
+			} `yaml:"hooks"`
+		} `yaml:"repos"`
+	}
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		t.Fatalf("failed to parse .pre-commit-config.yaml: %v", err)
+	}
+
+	if len(config.Repos) == 0 {
+		t.Fatalf("expected repos to be defined in .pre-commit-config.yaml")
+	}
+
+	// 3. Verify key hooks are configured
+	hookIDs := make(map[string]bool)
+	for _, r := range config.Repos {
+		for _, h := range r.Hooks {
+			hookIDs[h.ID] = true
+		}
+	}
+
+	requiredHooks := []string{
+		"trailing-whitespace",
+		"end-of-file-fixer",
+		"check-yaml",
+		"shellcheck",
+		"go-fmt",
+		"go-vet-mod",
+		"go-mod-tidy",
+		"go-test-mod",
+	}
+
+	for _, hook := range requiredHooks {
+		if !hookIDs[hook] {
+			t.Errorf("missing expected hook %q in .pre-commit-config.yaml", hook)
+		}
+	}
+}
