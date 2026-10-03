@@ -106,4 +106,4 @@ Agents **must** verify all changes using the repository's standard quality gates
   The compiled daemon must run as an unprivileged user inside Docker containers with read-only root filesystems where applicable.
 - **Packaging & Distribution**:
   - Production Systemd unit templates live in `systemd/cam-proxy.service` and enforce sandboxing (`DynamicUser=yes`, `ProtectSystem=strict`, `ProtectHome=yes`, `CapabilityBoundingSet=`, `Restart=always`). The unit template is packaged into release archives.
-  - Homebrew tap publishing is maintained in `.goreleaser.yaml` targeting `smford/homebrew-tap` using GoReleaser v2 `homebrew_casks:`.
+  - Homebrew tap publishing is automated via `scripts/generate_formula.sh` targeting `smford/homebrew-tap` (`Formula/cam-proxy.rb`) in the release workflow using secret `HOMEBREW_TAP_GITHUB_TOKEN`.

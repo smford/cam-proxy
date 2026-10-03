@@ -46,4 +46,46 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+
+      - name: Generate Homebrew Formula
+        id: formula
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG_NAME#v}"
+          echo "tag=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          chmod +x scripts/generate_formula.sh
+          ./scripts/generate_formula.sh "$VERSION" "$TAG_NAME" "dist" "dist/cam-proxy.rb"
+
+      - name: Upload Formula to Release Assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.formula.outputs.tag }}
+        run: |
+          gh release upload "$TAG_NAME" dist/cam-proxy.rb --clobber
+
+      - name: Publish Homebrew Formula to Tap
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.formula.outputs.tag }}
+        run: |
+          if [ -n "${TAP_TOKEN}" ]; then
+            echo "Publishing updated formula to smford/homebrew-tap..."
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "github-actions[bot]@users.noreply.github.com"
+            git clone "https://x-access-token:${TAP_TOKEN}@github.com/smford/homebrew-tap.git" tap_repo
+            mkdir -p tap_repo/Formula
+            cp dist/cam-proxy.rb tap_repo/Formula/cam-proxy.rb
+            cd tap_repo
+            git add Formula/cam-proxy.rb
+            if git commit -m "feat(formula): update cam-proxy to ${TAG_NAME}"; then
+              git push origin main
+              echo "Successfully pushed formula update to smford/homebrew-tap"
+            else
+              echo "Formula in tap is already up to date"
+            fi
+            cd ..
+            rm -rf tap_repo
+          else
+            echo "::warning::HOMEBREW_TAP_GITHUB_TOKEN secret is not set. Formula available in release assets."
+          fi

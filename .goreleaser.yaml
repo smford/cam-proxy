@@ -37,19 +37,6 @@ archives:
       - systemd/cam-proxy.service
       - docs/*
 
-homebrew_casks:
-  - name: cam-proxy
-    repository:
-      owner: smford
-      name: homebrew-tap
-      branch: main
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
-      pull_request:
-        enabled: false
-    directory: Casks
-    homepage: "https://github.com/smford/cam-proxy"
-    description: "Lightweight edge camera gateway — snapshots, PTZ control, and ONVIF-to-MQTT events"
-    license: "MIT"
 
 dockers_v2:
   - id: cam-proxy

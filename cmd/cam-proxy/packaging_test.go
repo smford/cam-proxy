@@ -98,7 +98,7 @@ func TestSystemdUnitFile(t *testing.T) {
 	}
 }
 
-func TestGoReleaserPackagingConfig(t *testing.T) {
+func TestPackagingAndDistribution(t *testing.T) {
 	root := findRepoRoot(t)
 	configPath := filepath.Join(root, ".goreleaser.yaml")
 
@@ -112,13 +112,6 @@ func TestGoReleaserPackagingConfig(t *testing.T) {
 		Archives []struct {
 			Files []string `yaml:"files"`
 		} `yaml:"archives"`
-		HomebrewCasks []struct {
-			Name       string `yaml:"name"`
-			Repository struct {
-				Owner string `yaml:"owner"`
-				Name  string `yaml:"name"`
-			} `yaml:"repository"`
-		} `yaml:"homebrew_casks"`
 	}
 
 	if err := yaml.Unmarshal(data, &goreleaserConfig); err != nil {
@@ -143,19 +136,30 @@ func TestGoReleaserPackagingConfig(t *testing.T) {
 		t.Errorf("expected systemd/cam-proxy.service to be included in archive files")
 	}
 
-	// Verify Homebrew tap distribution configuration
-	if len(goreleaserConfig.HomebrewCasks) == 0 {
-		t.Fatalf("expected homebrew_casks configuration in .goreleaser.yaml")
+	// Verify Homebrew formula generator script exists and is executable
+	scriptPath := filepath.Join(root, "scripts", "generate_formula.sh")
+	info, err := os.Stat(scriptPath)
+	if err != nil {
+		t.Fatalf("failed to stat scripts/generate_formula.sh: %v", err)
+	}
+	if info.Mode()&0111 == 0 {
+		t.Errorf("scripts/generate_formula.sh is not executable: mode %v", info.Mode())
 	}
 
-	cask := goreleaserConfig.HomebrewCasks[0]
-	if cask.Name != "cam-proxy" {
-		t.Errorf("expected homebrew package name 'cam-proxy', got %q", cask.Name)
+	// Verify workflow release file publishes to smford/homebrew-tap using HOMEBREW_TAP_GITHUB_TOKEN
+	wfPath := filepath.Join(root, ".github", "workflows", "release.yml")
+	wfData, err := os.ReadFile(wfPath)
+	if err != nil {
+		t.Fatalf("failed to read .github/workflows/release.yml: %v", err)
 	}
-	if cask.Repository.Owner != "smford" {
-		t.Errorf("expected repository owner 'smford', got %q", cask.Repository.Owner)
+	wfContent := string(wfData)
+	if !strings.Contains(wfContent, "smford/homebrew-tap") {
+		t.Errorf("expected release workflow to target smford/homebrew-tap")
 	}
-	if cask.Repository.Name != "homebrew-tap" {
-		t.Errorf("expected repository name 'homebrew-tap', got %q", cask.Repository.Name)
+	if !strings.Contains(wfContent, "HOMEBREW_TAP_GITHUB_TOKEN") {
+		t.Errorf("expected release workflow to use secret HOMEBREW_TAP_GITHUB_TOKEN")
+	}
+	if !strings.Contains(wfContent, "Formula/cam-proxy.rb") {
+		t.Errorf("expected release workflow to publish Formula/cam-proxy.rb")
 	}
 }
