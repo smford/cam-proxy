@@ -534,9 +534,9 @@ var (
 			Padding(0, 2)
 
 	tabInactiveStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#888888")).
-			Background(lipgloss.Color("#222222")).
-			Padding(0, 2)
+				Foreground(lipgloss.Color("#888888")).
+				Background(lipgloss.Color("#222222")).
+				Padding(0, 2)
 
 	selectedStyle = lipgloss.NewStyle().
 			Bold(true).

@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	ErrCameraNotFound    = errors.New("camera not found")
-	ErrNoSnapshotSource  = errors.New("no snapshot source (ONVIF or RTSP) configured for camera")
+	ErrCameraNotFound     = errors.New("camera not found")
+	ErrNoSnapshotSource   = errors.New("no snapshot source (ONVIF or RTSP) configured for camera")
 	ErrONVIFNotConfigured = errors.New("ONVIF is not configured for this camera")
 )
 

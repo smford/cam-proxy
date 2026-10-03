@@ -12,8 +12,8 @@ import (
 // Event represents a normalized camera event.
 type Event struct {
 	CameraID  string    `json:"camera_id"`
-	Type      string    `json:"type"`      // e.g. "motion", "tamper", "input"
-	State     bool      `json:"state"`     // true = active/detected, false = cleared
+	Type      string    `json:"type"`  // e.g. "motion", "tamper", "input"
+	State     bool      `json:"state"` // true = active/detected, false = cleared
 	RawTopic  string    `json:"raw_topic"`
 	Timestamp time.Time `json:"timestamp"`
 }

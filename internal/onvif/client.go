@@ -314,8 +314,8 @@ func (d *Device) GetProfiles(ctx context.Context) ([]Profile, error) {
 		Body    struct {
 			Response struct {
 				Profiles []struct {
-					Token               string `xml:"token,attr"`
-					Name                string `xml:"Name"`
+					Token                     string `xml:"token,attr"`
+					Name                      string `xml:"Name"`
 					VideoEncoderConfiguration struct {
 						Encoding string `xml:"Encoding"`
 					} `xml:"VideoEncoderConfiguration"`

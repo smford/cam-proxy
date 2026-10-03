@@ -479,14 +479,44 @@ Whenever a Git tag matching `v*.*.*` is pushed to GitHub, the `.github/workflows
      - `ghcr.io/smford/camstop:vX`
    - Supporting both `linux/amd64` and `linux/arm64`.
 
-### Creating a Release
+### Creating a Release (Manual)
 Use the built-in Makefile targets:
 ```bash
-# Bump patch (v0.1.0 -> v0.1.1)
+# Bump patch (v0.2.0 -> v0.2.1)
 make tag-patch
-git push origin v0.1.1
+git push origin v0.2.1
 
-# Or bump minor (v0.1.0 -> v0.2.0)
+# Or bump minor (v0.2.0 -> v0.3.0)
 make tag-minor
-git push origin v0.2.0
+git push origin v0.3.0
 ```
+
+---
+
+## Dependabot & Automated Release Pipeline
+
+`camstop` is configured with an automated, weekly dependency maintenance pipeline:
+
+1. **Weekly Scheduled Updates**:
+   - Dependabot checks for dependency updates **once a week** (Mondays at 06:00 UTC).
+   - Updates are grouped into consolidated pull requests:
+     - `go-dependencies`: Grouped `go.mod` / `go.sum` updates.
+     - `actions-dependencies`: Grouped GitHub Actions workflow updates.
+     - `docker`: Docker base image updates.
+
+2. **Robust Multi-Stage CI Verification**:
+   Before any Dependabot PR can merge to `main`, it must pass comprehensive CI checks:
+   - **Lint & Code Standards**: `gofmt` style validation, `go vet`, `go mod verify`, and `go mod tidy` cleanliness check.
+   - **Race-Detection Tests**: Full test suite with `-race` and code coverage profiling.
+   - **Cross-Compilation Matrix**: Verified compilation across `linux/amd64`, `linux/arm64`, and `darwin/arm64`.
+   - **Container Build Test**: Multi-stage Docker image build verification.
+   - **Release Config Validation**: `goreleaser check` to ensure release configs remain valid.
+
+3. **Automated Merging**:
+   - Dependabot pull requests are automatically approved and queued for auto-merge.
+   - GitHub auto-merge safely waits until all CI status checks succeed before merging onto `main`.
+
+4. **Automated Release on Merge**:
+   - When a Dependabot PR merges onto `main`, the `.github/workflows/dependabot-release.yml` workflow triggers automatically.
+   - It calculates the next patch version (e.g. `v0.2.0` -> `v0.2.1`), creates and pushes the Git tag, and invokes GoReleaser.
+   - The new release binaries and multi-architecture Docker containers (`ghcr.io/smford/camstop:vX.Y.Z` and `:latest`) are published immediately without manual intervention.
