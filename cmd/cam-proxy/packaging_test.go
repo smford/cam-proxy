@@ -1,0 +1,161 @@
+package main
+
+import (
+	"bufio"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"gopkg.in/yaml.v3"
+)
+
+func findRepoRoot(t *testing.T) string {
+	t.Helper()
+	// Navigate up until we find go.mod
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get current working directory: %v", err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatalf("could not find repository root containing go.mod")
+		}
+		dir = parent
+	}
+}
+
+func TestSystemdUnitFile(t *testing.T) {
+	root := findRepoRoot(t)
+	servicePath := filepath.Join(root, "systemd", "cam-proxy.service")
+
+	data, err := os.ReadFile(servicePath)
+	if err != nil {
+		t.Fatalf("failed to read systemd service file at %s: %v", servicePath, err)
+	}
+
+	content := string(data)
+
+	// Verify required sections
+	requiredSections := []string{"[Unit]", "[Service]", "[Install]"}
+	for _, sec := range requiredSections {
+		if !strings.Contains(content, sec) {
+			t.Errorf("systemd service file missing section %s", sec)
+		}
+	}
+
+	// Verify key directives
+	scanner := bufio.NewScanner(strings.NewReader(content))
+	directives := make(map[string]string)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "[") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			directives[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+		}
+	}
+
+	expectedDirectives := map[string]string{
+		"DynamicUser":            "yes",
+		"ProtectSystem":          "strict",
+		"Restart":                "always",
+		"NoNewPrivileges":        "yes",
+		"ProtectHome":            "yes",
+		"PrivateTmp":             "yes",
+		"PrivateDevices":         "yes",
+		"ProtectControlGroups":   "yes",
+		"MemoryDenyWriteExecute": "yes",
+		"ConfigurationDirectory": "cam-proxy",
+		"WantedBy":               "multi-user.target",
+	}
+
+	for key, expectedVal := range expectedDirectives {
+		actualVal, exists := directives[key]
+		if !exists {
+			t.Errorf("missing required systemd directive %q", key)
+		} else if actualVal != expectedVal {
+			t.Errorf("expected directive %s=%q, got %q", key, expectedVal, actualVal)
+		}
+	}
+
+	// Verify ExecStart points to cam-proxy binary with config flag
+	execStart, ok := directives["ExecStart"]
+	if !ok {
+		t.Fatalf("missing ExecStart directive")
+	}
+	if !strings.Contains(execStart, "cam-proxy") {
+		t.Errorf("expected ExecStart to reference cam-proxy binary, got %q", execStart)
+	}
+	if !strings.Contains(execStart, "-config") {
+		t.Errorf("expected ExecStart to pass -config parameter, got %q", execStart)
+	}
+}
+
+func TestGoReleaserPackagingConfig(t *testing.T) {
+	root := findRepoRoot(t)
+	configPath := filepath.Join(root, ".goreleaser.yaml")
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("failed to read .goreleaser.yaml: %v", err)
+	}
+
+	var goreleaserConfig struct {
+		Version  int `yaml:"version"`
+		Archives []struct {
+			Files []string `yaml:"files"`
+		} `yaml:"archives"`
+		HomebrewCasks []struct {
+			Name       string `yaml:"name"`
+			Repository struct {
+				Owner string `yaml:"owner"`
+				Name  string `yaml:"name"`
+			} `yaml:"repository"`
+		} `yaml:"homebrew_casks"`
+	}
+
+	if err := yaml.Unmarshal(data, &goreleaserConfig); err != nil {
+		t.Fatalf("failed to parse .goreleaser.yaml: %v", err)
+	}
+
+	if goreleaserConfig.Version != 2 {
+		t.Errorf("expected GoReleaser version 2, got %d", goreleaserConfig.Version)
+	}
+
+	// Verify systemd unit template is packaged in release archives
+	var foundSystemdInArchive bool
+	for _, archive := range goreleaserConfig.Archives {
+		for _, f := range archive.Files {
+			if strings.Contains(f, "systemd/cam-proxy.service") {
+				foundSystemdInArchive = true
+				break
+			}
+		}
+	}
+	if !foundSystemdInArchive {
+		t.Errorf("expected systemd/cam-proxy.service to be included in archive files")
+	}
+
+	// Verify Homebrew tap distribution configuration
+	if len(goreleaserConfig.HomebrewCasks) == 0 {
+		t.Fatalf("expected homebrew_casks configuration in .goreleaser.yaml")
+	}
+
+	cask := goreleaserConfig.HomebrewCasks[0]
+	if cask.Name != "cam-proxy" {
+		t.Errorf("expected homebrew package name 'cam-proxy', got %q", cask.Name)
+	}
+	if cask.Repository.Owner != "smford" {
+		t.Errorf("expected repository owner 'smford', got %q", cask.Repository.Owner)
+	}
+	if cask.Repository.Name != "homebrew-tap" {
+		t.Errorf("expected repository name 'homebrew-tap', got %q", cask.Repository.Name)
+	}
+}

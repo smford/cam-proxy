@@ -486,6 +486,52 @@ When MQTT and discovery are enabled (`discovery: true`, enabled by default), `ca
 
 ---
 
+## Installation & Distribution
+
+### 1. Homebrew (macOS & Linux)
+
+Install `cam-proxy` via the official [smford/homebrew-tap](https://github.com/smford/homebrew-tap):
+
+```bash
+# Add the tap repository
+brew tap smford/tap
+
+# Install cam-proxy
+brew install cam-proxy
+```
+
+---
+
+### 2. Hardened Systemd Service (Linux Edge & Server)
+
+For production Linux deployments, `cam-proxy` provides a hardened Systemd unit template at [`systemd/cam-proxy.service`](systemd/cam-proxy.service) equipped with strict security sandboxing:
+
+- **Security Isolation**: `DynamicUser=yes` dynamically provisions an unprivileged, ephemeral service user and group.
+- **Read-Only Filesystem**: `ProtectSystem=strict` and `ProtectHome=yes` lock the filesystem down read-only, preventing unauthorized modifications.
+- **Attack Surface Minimization**: `CapabilityBoundingSet=` drops all Linux root capabilities, while `MemoryDenyWriteExecute=yes`, `PrivateTmp=yes`, `PrivateDevices=yes`, and `ProtectKernelTunables=yes` block privilege escalation vectors.
+- **Automatic Recovery**: `Restart=always` and `RestartSec=5s` guarantee immediate daemon recovery across camera or network faults.
+
+**Installation Steps:**
+```bash
+# 1. Copy the compiled binary into standard path
+sudo cp cam-proxy /usr/local/bin/
+
+# 2. Set up the configuration directory
+sudo mkdir -p /etc/cam-proxy
+sudo cp config.example.yaml /etc/cam-proxy/cam-proxy.yaml
+
+# 3. Install and activate the systemd unit
+sudo cp systemd/cam-proxy.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now cam-proxy
+
+# 4. Check service status and logs
+sudo systemctl status cam-proxy
+journalctl -u cam-proxy -f
+```
+
+---
+
 ## Docker Deployment
 
 `cam-proxy` provides official multi-architecture Docker images (`linux/amd64` and `linux/arm64`) with `ffmpeg` and `ca-certificates` pre-installed for seamless H.264/H.265 RTSP snapshot extraction.
@@ -557,6 +603,9 @@ Whenever a Git tag matching `v*.*.*` is pushed to GitHub, the `.github/workflows
      - `ghcr.io/smford/cam-proxy:vX.Y`
      - `ghcr.io/smford/cam-proxy:vX`
    - Supporting both `linux/amd64` and `linux/arm64`.
+
+3. **Homebrew Tap Distribution**:
+   - Automatically publishes and synchronizes package recipes to [`smford/homebrew-tap`](https://github.com/smford/homebrew-tap) via GoReleaser.
 
 ### Creating a Release (Manual)
 Use the built-in Makefile targets:

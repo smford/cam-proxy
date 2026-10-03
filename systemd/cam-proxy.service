@@ -1,0 +1,43 @@
+[Unit]
+Description=cam-proxy edge camera gateway
+Documentation=https://github.com/smford/cam-proxy
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/cam-proxy -config /etc/cam-proxy/cam-proxy.yaml
+Restart=always
+RestartSec=5s
+LimitNOFILE=65536
+
+# Security & Sandboxing Hardening
+DynamicUser=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateUsers=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# Configuration & Runtime Directories
+ConfigurationDirectory=cam-proxy
+RuntimeDirectory=cam-proxy
+
+[Install]
+WantedBy=multi-user.target
