@@ -210,3 +210,36 @@ func TestGitHubPagesAndDocumentation(t *testing.T) {
 		t.Errorf("expected pages workflow to trigger on release")
 	}
 }
+
+func TestGitHubStatsWorkflow(t *testing.T) {
+	root := findRepoRoot(t)
+
+	// 1. Verify .gh-stats.yml exists and has valid YAML syntax
+	configPath := filepath.Join(root, ".gh-stats.yml")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("failed to read .gh-stats.yml: %v", err)
+	}
+	var ghStatsConfig map[string]interface{}
+	if err := yaml.Unmarshal(data, &ghStatsConfig); err != nil {
+		t.Fatalf("failed to parse .gh-stats.yml: %v", err)
+	}
+
+	// 2. Verify .github/workflows/gh-stats.yml exists and uses smford/gh-stats
+	wfPath := filepath.Join(root, ".github", "workflows", "gh-stats.yml")
+	wfData, err := os.ReadFile(wfPath)
+	if err != nil {
+		t.Fatalf("failed to read .github/workflows/gh-stats.yml: %v", err)
+	}
+	wfContent := string(wfData)
+
+	if !strings.Contains(wfContent, "smford/gh-stats@") {
+		t.Errorf("expected gh-stats workflow to use smford/gh-stats")
+	}
+	if !strings.Contains(wfContent, "security-events: write") {
+		t.Errorf("expected gh-stats workflow to have security-events: write permission")
+	}
+	if !strings.Contains(wfContent, "pull_request:") || !strings.Contains(wfContent, "push:") {
+		t.Errorf("expected gh-stats workflow to trigger on pull_request and push")
+	}
+}

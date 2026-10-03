@@ -1,0 +1,33 @@
+# .gh-stats.yml - Configuration for gh-stats SRE Code Health Analysis
+# https://github.com/smford/gh-stats
+
+thresholds:
+  max_pr_lines: 800
+  stale_pr_days: 14
+  min_test_ratio: 0.2
+  max_discussions: 15
+  commit_limit: 250
+  max_ci_latency_minutes: 15
+  fail_on_flaky_ci: false
+
+blast_radius:
+  custom_patterns:
+    - category: "Core Gateway Engine"
+      pattern: "internal/camera/**"
+      description: "Camera lifecycle, singleflight coalescing, and TTL frame caching engine"
+    - category: "Hardware Protocol"
+      pattern: "internal/onvif/**"
+      description: "ONVIF SOAP services, WS-Security, and PullPoint event subscriptions"
+    - category: "HTTP REST API"
+      pattern: "internal/api/**"
+      description: "HTTP REST handlers, security headers, and CORS middleware"
+    - category: "CI/CD & Release Automation"
+      pattern: ".github/workflows/**"
+      description: "GitHub Actions workflow automation and release pipelines"
+
+ignore:
+  paths:
+    - "vendor/**"
+    - "**/*_gen.go"
+    - "docs/**"
+    - "config.example.yaml"
