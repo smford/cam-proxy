@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/smford/cam-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/smford/cam-proxy/actions/workflows/ci.yml)
 [![Release](https://github.com/smford/cam-proxy/actions/workflows/release.yml/badge.svg)](https://github.com/smford/cam-proxy/releases)
+[![Docs](https://img.shields.io/badge/docs-website-blue.svg)](https://stephenford.org/cam-proxy/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **An ultra-lightweight, zero-stress edge gateway for IP security cameras.**
