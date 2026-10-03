@@ -520,3 +520,24 @@ git push origin v0.3.0
    - When a Dependabot PR merges onto `main`, the `.github/workflows/dependabot-release.yml` workflow triggers automatically.
    - It calculates the next patch version (e.g. `v0.2.0` -> `v0.2.1`), creates and pushes the Git tag, and invokes GoReleaser.
    - The new release binaries and multi-architecture Docker containers (`ghcr.io/smford/camstop:vX.Y.Z` and `:latest`) are published immediately without manual intervention.
+
+---
+
+## Static Application Security Testing (SAST)
+
+`camstop` incorporates a dual-layer Static Application Security Testing (SAST) strategy automated via [`.github/workflows/sast.yml`](.github/workflows/sast.yml) running on every push to `main`, every pull request, and a weekly scheduled scan (Mondays at 07:00 UTC):
+
+| SAST Tool | Role | Strengths | Trigger / Output |
+| :--- | :--- | :--- | :--- |
+| **GitHub CodeQL** | Semantic Taint Analysis | Deep data-flow and inter-procedural taint analysis across Go packages (CWEs, untrusted inputs reaching network/exec sinks) | Analyzes Go source with `security-extended` query suite; outputs SARIF to GitHub Code Scanning |
+| **Semgrep OSS** | Rapid Pattern Checks & Linting | Fast AST-based pattern matching and rule enforcement across Go source, Dockerfile, and GitHub Actions workflows | Runs `semgrep scan --config auto`; generates SARIF and uploads alerts to GitHub Code Scanning |
+
+### Local Security Scanning
+Run Semgrep OSS locally using the Makefile:
+```bash
+make sast
+```
+Or directly using `uvx`:
+```bash
+uvx semgrep scan --config auto
+```

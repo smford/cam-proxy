@@ -1,0 +1,8 @@
+# Semgrep ignore rules for camstop
+*.test
+*.out
+coverage.out
+dist/
+build/
+bin/
+vendor/

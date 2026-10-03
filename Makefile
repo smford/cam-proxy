@@ -9,7 +9,7 @@ LDFLAGS     := -s -w \
                -X main.commit=$(COMMIT) \
                -X main.date=$(DATE)
 
-.PHONY: all build clean test lint run scan release-snapshot tag-patch tag-minor tag-major docker-build docker-run
+.PHONY: all build clean test lint run scan sast release-snapshot tag-patch tag-minor tag-major docker-build docker-run
 
 all: build
 
@@ -24,6 +24,9 @@ build-linux-amd64:
 
 test:
 	go test -v -race ./...
+
+sast:
+	uvx semgrep scan --config auto
 
 scan: build
 	./$(BINARY_NAME) --scan
