@@ -1,0 +1,20 @@
+FROM alpine:3.21
+
+# Install ca-certificates (HTTPS/ONVIF), tzdata (timezones), and ffmpeg (H.264 snapshot decoding)
+RUN apk add --no-cache ca-certificates tzdata ffmpeg
+
+# Create non-root user and configuration directory
+RUN addgroup -S camstop && adduser -S camstop -G camstop && \
+    mkdir -p /etc/camstop && \
+    chown -R camstop:camstop /etc/camstop
+
+ARG TARGETPLATFORM
+COPY ${TARGETPLATFORM}/camstop /usr/local/bin/camstop
+
+USER camstop
+WORKDIR /etc/camstop
+
+EXPOSE 8080
+
+ENTRYPOINT ["/usr/local/bin/camstop"]
+CMD ["-config", "/etc/camstop/camstop.yaml"]

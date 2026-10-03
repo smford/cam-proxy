@@ -9,7 +9,7 @@ LDFLAGS     := -s -w \
                -X main.commit=$(COMMIT) \
                -X main.date=$(DATE)
 
-.PHONY: all build clean test lint run scan release-snapshot tag-patch tag-minor tag-major
+.PHONY: all build clean test lint run scan release-snapshot tag-patch tag-minor tag-major docker-build docker-run
 
 all: build
 
@@ -36,6 +36,14 @@ clean:
 
 run: build
 	./$(BINARY_NAME) -config config.example.yaml -log-level debug
+
+docker-build:
+	docker build -t $(BINARY_NAME):latest .
+
+docker-run:
+	docker run --rm -it --network host \
+		-v $$(pwd)/camstop.yaml:/etc/camstop/camstop.yaml:ro \
+		$(BINARY_NAME):latest
 
 release-snapshot:
 	goreleaser release --snapshot --clean

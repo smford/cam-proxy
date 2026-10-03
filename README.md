@@ -1,11 +1,11 @@
-# camtap
+# camstop
 
-`camtap` is a lightweight (< 20MB RSS), single-binary edge daemon written in pure Go. It bridges IP cameras to modern edge computing environments by providing:
+`camstop` is a lightweight (< 20MB RSS), single-binary edge daemon written in pure Go. It bridges IP cameras to modern edge computing environments by providing:
 
 1. **On-Demand Snapshots**: Connects to the camera on-demand (via ONVIF HTTP or RTSP), grabs a frame, converts it to JPEG in memory, and serves it over HTTP. Zero 24/7 decoding overhead.
 2. **PTZ Control**: Exposes simple JSON REST endpoints for continuous velocity moves, absolute stops, and preset recalls via ONVIF SOAP.
 3. **ONVIF Event-to-MQTT Bridge**: Subscribes to camera PullPoint notification queues (motion, tamper, line crossing), normalizes states, and publishes clean JSON events to MQTT.
-4. **Zero Heavy Dependencies**: Pure Go compilation (`CGO_ENABLED=0`) with no FFmpeg runtime dependency required.
+4. **Zero Heavy Dependencies**: Pure Go compilation (`CGO_ENABLED=0`) with built-in H.264 snapshot extraction via external decoder or pure Go MJPEG.
 
 ---
 
@@ -17,7 +17,7 @@ flowchart TD
         HTTPClients["HTTP Clients / Frontends"]
     end
 
-    subgraph Daemon["camtap daemon"]
+    subgraph Daemon["camstop daemon"]
         subgraph API["Go 1.22+ net/http API"]
             SnapshotEP["GET /api/v1/cameras/{id}/snapshot"]
             PTZEP["POST /api/v1/cameras/{id}/ptz"]
@@ -224,9 +224,9 @@ Content-Type: application/json
 
 ## MQTT Event Bridge
 
-When `pull_events: true` is enabled on a camera, `camtap` subscribes to the camera's ONVIF PullPoint notification queue. Detected alerts are normalized and published to:
+When `pull_events: true` is enabled on a camera, `camstop` subscribes to the camera's ONVIF PullPoint notification queue. Detected alerts are normalized and published to:
 
-`<topic_prefix>/<camera_id>/<event_type>` (e.g. `camtap/events/front_door/motion`)
+`<topic_prefix>/<camera_id>/<event_type>` (e.g. `camstop/events/front_door/motion`)
 
 Payload format:
 ```json
@@ -241,18 +241,77 @@ Payload format:
 
 ---
 
+## Docker Deployment
+
+`camstop` provides official multi-architecture Docker images (`linux/amd64` and `linux/arm64`) with `ffmpeg` and `ca-certificates` pre-installed for seamless H.264/H.265 RTSP snapshot extraction.
+
+### 1. Run with Docker CLI
+```bash
+docker run -d \
+  --name camstop \
+  --restart unless-stopped \
+  --network host \
+  -v $(pwd)/camstop.yaml:/etc/camstop/camstop.yaml:ro \
+  ghcr.io/smford/camstop:latest
+```
+
+> [!NOTE]
+> **Why `--network host`?**
+> Local camera discovery (`--scan`) relies on ONVIF WS-Discovery (multicast UDP `239.255.255.250:3702`). Docker bridge networks do not forward UDP multicast broadcasts across the host's physical network adapter. If you do not need auto-discovery and configure cameras directly by IP, you can use standard port mapping instead (`-p 8080:8080`).
+
+### 2. Run with Docker Compose
+A [`docker-compose.yml`](docker-compose.yml) is included in the repository:
+
+```yaml
+services:
+  camstop:
+    image: ghcr.io/smford/camstop:latest
+    container_name: camstop
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./camstop.yaml:/etc/camstop/camstop.yaml:ro
+    environment:
+      - TZ=UTC
+```
+
+Start the container:
+```bash
+docker compose up -d
+```
+
+### 3. Build Docker Image Locally
+```bash
+# Using Make
+make docker-build
+
+# Or using Docker directly
+docker build -t camstop:latest .
+```
+
+---
+
 ## Releases & SemVer Versioning
 
 Releases follow standard Semantic Versioning (`vMAJOR.MINOR.PATCH`).
 
-### Automated CI/CD
-Whenever a Git tag matching `v*.*.*` is pushed to GitHub, the `.github/workflows/release.yml` workflow triggers [GoReleaser](https://goreleaser.com/) to build static binaries for:
-- `linux/amd64`
-- `linux/arm64` (Raspberry Pi 3/4/5, Armbian, edge appliances)
-- `darwin/amd64`
-- `darwin/arm64` (Apple Silicon)
+### Automated CI/CD & Multi-Arch Docker Publishing
+Whenever a Git tag matching `v*.*.*` is pushed to GitHub, the `.github/workflows/release.yml` workflow triggers [GoReleaser](https://goreleaser.com/) to automatically build and publish:
 
-It automatically bundles archives, computes SHA256 checksums, and attaches them to the new GitHub Release.
+1. **Static Binary Archives**:
+   - `linux/amd64`
+   - `linux/arm64` (Raspberry Pi 3/4/5, Armbian, edge appliances)
+   - `darwin/amd64` (Intel Mac)
+   - `darwin/arm64` (Apple Silicon)
+   - Accompanying SHA256 checksums attached to the GitHub Release.
+
+2. **Multi-Architecture Container Images**:
+   - Pushed directly to GitHub Container Registry (`ghcr.io`):
+     - `ghcr.io/smford/camstop:latest`
+     - `ghcr.io/smford/camstop:vX.Y.Z`
+     - `ghcr.io/smford/camstop:vX.Y`
+     - `ghcr.io/smford/camstop:vX`
+   - Supporting both `linux/amd64` and `linux/arm64`.
 
 ### Creating a Release
 Use the built-in Makefile targets:

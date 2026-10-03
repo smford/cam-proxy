@@ -1,0 +1,14 @@
+services:
+  camstop:
+    image: ghcr.io/smford/camstop:latest
+    container_name: camstop
+    restart: unless-stopped
+    # host networking is recommended for ONVIF WS-Discovery (multicast UDP 239.255.255.250:3702)
+    network_mode: host
+    # If not using host networking, uncomment ports below:
+    # ports:
+    #   - "8080:8080"
+    volumes:
+      - ./camstop.yaml:/etc/camstop/camstop.yaml:ro
+    environment:
+      - TZ=UTC
