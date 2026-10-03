@@ -7,6 +7,19 @@ server:
   read_timeout: 10s
   write_timeout: 15s
   snapshot_cache_ttl: 1s                            # In-memory snapshot cache TTL (coalesces rapid dashboard reloads)
+  cors:
+    enabled: true                                   # Enable CORS for browser frontends, Lovelace cards, and extensions
+    allowed_origins:
+      - "*"                                         # Origins permitted to access API (or list specific origins)
+    allowed_methods:
+      - "GET"
+      - "POST"
+      - "OPTIONS"
+    allowed_headers:
+      - "Content-Type"
+      - "Authorization"
+      - "X-Requested-With"
+    max_age: 86400                                  # Preflight cache TTL in seconds (24h)
 
 mqtt:
   enabled: true

@@ -397,7 +397,19 @@ Retrieve the complete machine-readable OpenAPI specification for client generati
 
 ---
 
-### 7. Shell Scripting & Automation Examples
+### 7. HTTP Security Headers & CORS Middleware
+
+The HTTP API includes built-in security and CORS middleware out of the box:
+
+- **Configurable CORS Support**: Enables web frontends, Home Assistant Lovelace cards, and browser extensions to fetch dynamic snapshots (`GET`) and issue PTZ control commands (`POST`) directly from browser contexts.
+  - Automatically handles preflight `OPTIONS` requests with `204 No Content`.
+  - Configurable allowed origins (`*` by default or custom origin list), methods, allowed headers, credentials, and preflight max age.
+- **MIME Sniffing Protection**: Sets `X-Content-Type-Options: nosniff` across all API responses.
+- **Dynamic Image Cache Prevention**: Enforces `Cache-Control: no-cache, no-store, must-revalidate`, `Pragma: no-cache`, and `Expires: 0` headers on all camera snapshot endpoints to prevent stale image caching in client browsers and intermediate forward proxies.
+
+---
+
+### 8. Shell Scripting & Automation Examples
 
 #### Nudge Camera: Move for 1 Second, Then Stop
 - **With curl**:

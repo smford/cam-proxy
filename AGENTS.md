@@ -87,9 +87,11 @@ Agents **must** verify all changes using the repository's standard quality gates
 - Use structured logging via Go's standard `log/slog` (`slog.Info`, `slog.Warn`, `slog.Error`, `slog.Debug`) with key-value pairs (e.g., `"camera_id", id`, `"err", err`).
 - Never log plain text passwords or authentication headers.
 
-### HTTP Routing & API Conventions
+### HTTP Routing & Middleware Conventions
 - Use Go 1.22+ standard library method-prefixed path patterns on `http.ServeMux` (e.g. `GET /healthz`, `GET /api/v1/status`, `GET /metrics`, `GET /api/v1/cameras/{id}/snapshot`, `POST /api/v1/cameras/{id}/ptz`).
-- Snapshot endpoints return `Content-Type: image/jpeg` and `Cache-Control: no-cache, no-store, must-revalidate`.
+- The API handler pipeline wraps `mux` with `loggingMiddleware`, `SecurityHeadersMiddleware`, and `CORSMiddleware`.
+- All HTTP responses include `X-Content-Type-Options: nosniff`. Dynamic image endpoints (`/snapshot`) enforce `Cache-Control: no-cache, no-store, must-revalidate`, `Pragma: no-cache`, and `Expires: 0`.
+- CORS middleware handles preflight `OPTIONS` requests with `204 No Content` and supports configurable allowed origins, methods, headers, and credentials.
 - Prometheus metrics are exposed at `GET /metrics`.
 
 ---

@@ -197,3 +197,88 @@ mqtt:
 		t.Errorf("expected discovery_prefix 'custom_ha', got %q", cfg.MQTT.DiscoveryPrefix)
 	}
 }
+
+func TestCORSConfig(t *testing.T) {
+	// 1. Test defaults
+	def := config.DefaultConfig()
+	if !def.Server.CORS.Enabled {
+		t.Errorf("expected default CORS enabled to be true")
+	}
+	if len(def.Server.CORS.AllowedOrigins) != 1 || def.Server.CORS.AllowedOrigins[0] != "*" {
+		t.Errorf("expected default allowed_origins ['*'], got %v", def.Server.CORS.AllowedOrigins)
+	}
+	if len(def.Server.CORS.AllowedMethods) == 0 {
+		t.Errorf("expected default allowed_methods non-empty")
+	}
+	if def.Server.CORS.MaxAge != 86400 {
+		t.Errorf("expected default max_age 86400, got %d", def.Server.CORS.MaxAge)
+	}
+
+	// 2. Test YAML parsing with custom CORS
+	yamlContent := `
+server:
+  cors:
+    enabled: true
+    allowed_origins:
+      - "http://localhost:8123"
+      - "https://dashboard.home"
+    allowed_methods:
+      - "GET"
+      - "POST"
+    max_age: 3600
+`
+	tmpFile, err := os.CreateTemp("", "cam-proxy-cors-*.yaml")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.Write([]byte(yamlContent)); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+	tmpFile.Close()
+
+	cfg, err := config.Load(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("unexpected error loading config: %v", err)
+	}
+
+	if !cfg.Server.CORS.Enabled {
+		t.Errorf("expected CORS enabled true")
+	}
+	if len(cfg.Server.CORS.AllowedOrigins) != 2 || cfg.Server.CORS.AllowedOrigins[0] != "http://localhost:8123" {
+		t.Errorf("expected custom origins, got %v", cfg.Server.CORS.AllowedOrigins)
+	}
+	if cfg.Server.CORS.MaxAge != 3600 {
+		t.Errorf("expected custom max_age 3600, got %d", cfg.Server.CORS.MaxAge)
+	}
+	// Headers was omitted in YAML, should receive normalized default
+	if len(cfg.Server.CORS.AllowedHeaders) == 0 {
+		t.Errorf("expected normalized default allowed_headers, got empty")
+	}
+
+	// 3. Test disabling CORS
+	disabledYAML := `
+server:
+  cors:
+    enabled: false
+`
+	tmpFile2, err := os.CreateTemp("", "cam-proxy-cors-disabled-*.yaml")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile2.Name())
+
+	if _, err := tmpFile2.Write([]byte(disabledYAML)); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+	tmpFile2.Close()
+
+	cfg2, err := config.Load(tmpFile2.Name())
+	if err != nil {
+		t.Fatalf("unexpected error loading config: %v", err)
+	}
+	if cfg2.Server.CORS.Enabled {
+		t.Errorf("expected CORS enabled to be false")
+	}
+}

@@ -23,6 +23,17 @@ type ServerConfig struct {
 	ReadTimeout      time.Duration `yaml:"read_timeout"`
 	WriteTimeout     time.Duration `yaml:"write_timeout"`
 	SnapshotCacheTTL time.Duration `yaml:"snapshot_cache_ttl"`
+	CORS             CORSConfig    `yaml:"cors"`
+}
+
+// CORSConfig defines Cross-Origin Resource Sharing parameters.
+type CORSConfig struct {
+	Enabled          bool     `yaml:"enabled"`
+	AllowedOrigins   []string `yaml:"allowed_origins"`
+	AllowedMethods   []string `yaml:"allowed_methods"`
+	AllowedHeaders   []string `yaml:"allowed_headers"`
+	AllowCredentials bool     `yaml:"allow_credentials"`
+	MaxAge           int      `yaml:"max_age"`
 }
 
 // MQTTConfig defines the MQTT broker parameters.
@@ -67,6 +78,13 @@ func DefaultConfig() *Config {
 			ReadTimeout:      10 * time.Second,
 			WriteTimeout:     15 * time.Second,
 			SnapshotCacheTTL: 1 * time.Second,
+			CORS: CORSConfig{
+				Enabled:        true,
+				AllowedOrigins: []string{"*"},
+				AllowedMethods: []string{"GET", "POST", "OPTIONS"},
+				AllowedHeaders: []string{"Content-Type", "Authorization", "X-Requested-With"},
+				MaxAge:         86400,
+			},
 		},
 		MQTT: MQTTConfig{
 			Enabled:         false,
@@ -96,6 +114,21 @@ func Load(path string) (*Config, error) {
 
 	if err := yaml.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("unmarshaling config YAML: %w", err)
+	}
+
+	if cfg.Server.CORS.Enabled {
+		if len(cfg.Server.CORS.AllowedOrigins) == 0 {
+			cfg.Server.CORS.AllowedOrigins = []string{"*"}
+		}
+		if len(cfg.Server.CORS.AllowedMethods) == 0 {
+			cfg.Server.CORS.AllowedMethods = []string{"GET", "POST", "OPTIONS"}
+		}
+		if len(cfg.Server.CORS.AllowedHeaders) == 0 {
+			cfg.Server.CORS.AllowedHeaders = []string{"Content-Type", "Authorization", "X-Requested-With"}
+		}
+		if cfg.Server.CORS.MaxAge <= 0 {
+			cfg.Server.CORS.MaxAge = 86400
+		}
 	}
 
 	if cfg.MQTT.DiscoveryPrefix == "" {
