@@ -35,6 +35,7 @@ archives:
       - README*
       - config.example.yaml
       - systemd/cam-proxy.service
+      - docs/*
 
 homebrew_casks:
   - name: cam-proxy

@@ -61,7 +61,59 @@ brew tap smford/tap
 brew install cam-proxy
 ```
 
-### 2. Docker Container
+### 2. Raspberry Pi & Linux Edge (ARM64 / ARMv7)
+
+`cam-proxy` is optimized for edge hardware (Raspberry Pi 3/4/5 and Zero 2 W) running Raspberry Pi OS (64-bit `arm64` or 32-bit `armv7l`), idling at < 15MB RAM and 0% CPU.
+
+#### Option A: Pre-Compiled Binary & Systemd (Recommended)
+Download and install the latest `linux/arm64` release directly onto your Raspberry Pi:
+
+```bash
+# 1. Fetch latest release archive for ARM64
+LATEST=$(curl -s https://api.github.com/repos/smford/cam-proxy/releases/latest | grep "tag_name" | cut -d '"' -f 4)
+curl -sSL "https://github.com/smford/cam-proxy/releases/download/${LATEST}/cam-proxy_${LATEST#v}_linux_arm64.tar.gz" | sudo tar -xz -C /usr/local/bin cam-proxy
+
+# 2. Set up configuration directory and template
+sudo mkdir -p /etc/cam-proxy
+sudo curl -sSL https://raw.githubusercontent.com/smford/cam-proxy/main/config.example.yaml -o /etc/cam-proxy/cam-proxy.yaml
+
+# 3. Discover local cameras on your network
+cam-proxy --scan --generate-config | sudo tee -a /etc/cam-proxy/cam-proxy.yaml
+
+# 4. Install and enable the hardened production systemd service
+sudo curl -sSL https://raw.githubusercontent.com/smford/cam-proxy/main/systemd/cam-proxy.service -o /etc/systemd/system/cam-proxy.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now cam-proxy
+
+# 5. Verify service status
+sudo systemctl status cam-proxy
+```
+
+#### Option B: Docker on Raspberry Pi
+Run the official multi-arch container (`linux/arm64`):
+
+```bash
+docker run -d \
+  --name cam-proxy \
+  --restart unless-stopped \
+  --network host \
+  -v /etc/cam-proxy/cam-proxy.yaml:/etc/cam-proxy/cam-proxy.yaml:ro \
+  ghcr.io/smford/cam-proxy:latest
+```
+
+#### Option C: Cross-Compile from Development Machine
+If developing on macOS or Linux x86_64, build the static ARM64 binary locally and deploy over SSH:
+
+```bash
+# Build static ARM64 binary locally
+make build-linux-arm64
+
+# Copy binary to Raspberry Pi
+scp cam-proxy-linux-arm64 pi@raspberrypi.local:/tmp/cam-proxy
+ssh pi@raspberrypi.local "sudo install -m 755 /tmp/cam-proxy /usr/local/bin/cam-proxy && rm /tmp/cam-proxy"
+```
+
+### 3. Docker Container
 Official multi-architecture images (`linux/amd64`, `linux/arm64`) with `ffmpeg` and `ca-certificates` pre-installed:
 ```bash
 docker run -d \
@@ -72,10 +124,10 @@ docker run -d \
   ghcr.io/smford/cam-proxy:latest
 ```
 
-### 3. Pre-Built Static Binaries
+### 4. Pre-Built Static Binaries
 Download pre-compiled, zero-dependency static binaries (`linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`) with SHA256 checksums from the **[GitHub Releases](https://github.com/smford/cam-proxy/releases)** page.
 
-### 4. Build from Source
+### 5. Build from Source
 Requires Go 1.22+:
 ```bash
 git clone https://github.com/smford/cam-proxy.git
@@ -104,62 +156,11 @@ make build
 
 ---
 
-## Architecture Overview
+## Architecture
 
-```mermaid
-flowchart TD
-    subgraph Clients["Clients"]
-        HTTPClients["HTTP Clients / Frontends"]
-    end
+`cam-proxy` is engineered as a zero-CGO edge gateway running on minimal resources (~10–15 MB RAM, ~0% idle CPU) while protecting camera hardware from socket flooding via single-flight request coalescing and an in-memory frame cache.
 
-    subgraph Daemon["cam-proxy daemon"]
-        subgraph API["Go 1.22+ net/http API"]
-            SnapshotEP["GET /api/v1/cameras/{id}/snapshot"]
-            PTZEP["POST /api/v1/cameras/{id}/ptz"]
-            HealthzEP["GET /healthz & /api/v1/status"]
-            MetricsEP["GET /metrics"]
-            OpenAPIEP["GET /openapi.yaml"]
-        end
-
-        Manager["Camera Manager"]
-
-        subgraph Protocols["Protocol Engines"]
-            ONVIF["ONVIF Client (SOAP)
-            • WS-Security Auth
-            • HTTP Digest Auth
-            • PullPoint Poller"]
-
-            RTSP["RTSP Client (gortsplib)
-            • MJPEG / RTP Depacketizer
-            • Keyframe Detector"]
-        end
-
-        MQTTPub["MQTT Publisher"]
-    end
-
-    subgraph External["External Infrastructure"]
-        Broker["MQTT Broker"]
-        Camera["IP Camera (ONVIF / RTSP)"]
-    end
-
-    HTTPClients -->|REST / HTTP| API
-    SnapshotEP --> Manager
-    PTZEP --> Manager
-    HealthzEP -.-> Manager
-
-    Manager --> ONVIF
-    Manager --> RTSP
-
-    ONVIF -->|SOAP PTZ / HTTP Digest Snapshot| Camera
-    RTSP -->|RTSP / RTP Video Stream| Camera
-
-    ONVIF -->|Normalized Events| MQTTPub
-    MQTTPub -->|Publish JSON Alerts| Broker
-```
-
-### Memory Footprint & Resource Strategy
-- **Idle State**: ~10–15MB RSS. Only small background goroutines for MQTT keep-alives and ONVIF PullPoint long-polling.
-- **Snapshot Request**: Ephemeral connection opened, JPEG downloaded or RTP depacketized, memory garbage-collected immediately. No continuous video decoders or frame ring buffers kept in RAM.
+For the complete architectural breakdown, data flow diagrams, hardware protection lifecycle, and protocol engine internals, see **[docs/architecture.md](docs/architecture.md)**.
 
 ---
 
@@ -657,68 +658,18 @@ docker build -t cam-proxy:latest .
 
 Releases follow standard Semantic Versioning (`vMAJOR.MINOR.PATCH`).
 
-### Automated CI/CD & Multi-Arch Docker Publishing
-Whenever a Git tag matching `v*.*.*` is pushed to GitHub, the `.github/workflows/release.yml` workflow triggers [GoReleaser](https://goreleaser.com/) to automatically build and publish:
-
-1. **Static Binary Archives**:
-   - `linux/amd64`
-   - `linux/arm64` (Raspberry Pi 3/4/5, Armbian, edge appliances)
-   - `darwin/amd64` (Intel Mac)
-   - `darwin/arm64` (Apple Silicon)
-   - Accompanying SHA256 checksums attached to the GitHub Release.
-
-2. **Multi-Architecture Container Images**:
-   - Pushed directly to GitHub Container Registry (`ghcr.io`):
-     - `ghcr.io/smford/cam-proxy:latest`
-     - `ghcr.io/smford/cam-proxy:vX.Y.Z`
-     - `ghcr.io/smford/cam-proxy:vX.Y`
-     - `ghcr.io/smford/cam-proxy:vX`
-   - Supporting both `linux/amd64` and `linux/arm64`.
-
-3. **Homebrew Tap Distribution**:
-   - Automatically publishes and synchronizes package recipes to [`smford/homebrew-tap`](https://github.com/smford/homebrew-tap) via GoReleaser.
-
 ### Creating a Release (Manual)
-Use the built-in Makefile targets:
+Use the built-in Makefile targets to automatically tag and initiate GitHub releases:
 ```bash
-# Bump patch (v0.2.0 -> v0.2.1)
-make tag-patch
-git push origin v0.2.1
+# Automatically bump patch and publish (e.g. v0.3.0 -> v0.3.1)
+make release-patch
 
-# Or bump minor (v0.2.0 -> v0.3.0)
-make tag-minor
-git push origin v0.3.0
+# Or bump minor and publish (e.g. v0.3.0 -> v0.4.0)
+make release-minor
+
+# Or release an explicit version tag
+make release TAG=v0.4.0
 ```
-
----
-
-## Dependabot & Automated Release Pipeline
-
-`cam-proxy` is configured with an automated, weekly dependency maintenance pipeline:
-
-1. **Weekly Scheduled Updates**:
-   - Dependabot checks for dependency updates **once a week** (Mondays at 06:00 UTC).
-   - Updates are grouped into consolidated pull requests:
-     - `go-dependencies`: Grouped `go.mod` / `go.sum` updates.
-     - `actions-dependencies`: Grouped GitHub Actions workflow updates.
-     - `docker`: Docker base image updates.
-
-2. **Robust Multi-Stage CI Verification**:
-   Before any Dependabot PR can merge to `main`, it must pass comprehensive CI checks:
-   - **Lint & Code Standards**: `gofmt` style validation, `go vet`, `go mod verify`, and `go mod tidy` cleanliness check.
-   - **Race-Detection Tests**: Full test suite with `-race` and code coverage profiling.
-   - **Cross-Compilation Matrix**: Verified compilation across `linux/amd64`, `linux/arm64`, and `darwin/arm64`.
-   - **Container Build Test**: Multi-stage Docker image build verification.
-   - **Release Config Validation**: `goreleaser check` to ensure release configs remain valid.
-
-3. **Automated Merging**:
-   - Dependabot pull requests are automatically approved and queued for auto-merge.
-   - GitHub auto-merge safely waits until all CI status checks succeed before merging onto `main`.
-
-4. **Automated Release on Merge**:
-   - When a Dependabot PR merges onto `main`, the `.github/workflows/dependabot-release.yml` workflow triggers automatically.
-   - It calculates the next patch version (e.g. `v0.2.0` -> `v0.2.1`), creates and pushes the Git tag, and invokes GoReleaser.
-   - The new release binaries and multi-architecture Docker containers (`ghcr.io/smford/cam-proxy:vX.Y.Z` and `:latest`) are published immediately without manual intervention.
 
 ---
 
