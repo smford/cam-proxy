@@ -18,10 +18,11 @@ type Config struct {
 
 // ServerConfig defines the HTTP server parameters.
 type ServerConfig struct {
-	Host         string        `yaml:"host"`
-	Port         int           `yaml:"port"`
-	ReadTimeout  time.Duration `yaml:"read_timeout"`
-	WriteTimeout time.Duration `yaml:"write_timeout"`
+	Host             string        `yaml:"host"`
+	Port             int           `yaml:"port"`
+	ReadTimeout      time.Duration `yaml:"read_timeout"`
+	WriteTimeout     time.Duration `yaml:"write_timeout"`
+	SnapshotCacheTTL time.Duration `yaml:"snapshot_cache_ttl"`
 }
 
 // MQTTConfig defines the MQTT broker parameters.
@@ -43,25 +44,27 @@ type DiscoveryConfig struct {
 
 // CameraConfig specifies camera endpoints, credentials, and features.
 type CameraConfig struct {
-	ID             string `yaml:"id"`
-	Name           string `yaml:"name"`
-	Address        string `yaml:"address"` // e.g. "192.168.1.120:80"
-	RTSPURL        string `yaml:"rtsp_url"`
-	ONVIFUsername  string `yaml:"onvif_username"`
-	ONVIFPassword  string `yaml:"onvif_password"`
-	SnapshotMethod string `yaml:"snapshot_method"` // "auto", "onvif", "rtsp"
-	PullEvents     bool   `yaml:"pull_events"`
-	ProfileToken   string `yaml:"profile_token"`
+	ID               string         `yaml:"id"`
+	Name             string         `yaml:"name"`
+	Address          string         `yaml:"address"` // e.g. "192.168.1.120:80"
+	RTSPURL          string         `yaml:"rtsp_url"`
+	ONVIFUsername    string         `yaml:"onvif_username"`
+	ONVIFPassword    string         `yaml:"onvif_password"`
+	SnapshotMethod   string         `yaml:"snapshot_method"` // "auto", "onvif", "rtsp"
+	PullEvents       bool           `yaml:"pull_events"`
+	ProfileToken     string         `yaml:"profile_token"`
+	SnapshotCacheTTL *time.Duration `yaml:"snapshot_cache_ttl,omitempty"`
 }
 
 // DefaultConfig returns safe defaults suited for edge gateways.
 func DefaultConfig() *Config {
 	return &Config{
 		Server: ServerConfig{
-			Host:         "0.0.0.0",
-			Port:         8080,
-			ReadTimeout:  10 * time.Second,
-			WriteTimeout: 15 * time.Second,
+			Host:             "0.0.0.0",
+			Port:             8080,
+			ReadTimeout:      10 * time.Second,
+			WriteTimeout:     15 * time.Second,
+			SnapshotCacheTTL: 1 * time.Second,
 		},
 		MQTT: MQTTConfig{
 			Enabled:     false,

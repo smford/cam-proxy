@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/smford/cam-proxy/internal/config"
 	"github.com/smford/cam-proxy/internal/onvif"
 	"github.com/smford/cam-proxy/internal/rtsp"
@@ -26,6 +28,13 @@ type Camera struct {
 	Config      config.CameraConfig
 	onvifDevice *onvif.Device
 	mu          sync.RWMutex
+
+	sf          singleflight.Group
+	cacheMu     sync.RWMutex
+	cachedFrame []byte
+	cachedTime  time.Time
+	cacheTTL    time.Duration
+	cacheGen    uint64
 }
 
 // normalizeONVIFAddress ensures that the ONVIF HTTP endpoint does not accidentally connect
@@ -56,8 +65,14 @@ func normalizeONVIFAddress(address string) string {
 
 // NewCamera initializes a Camera instance from configuration.
 func NewCamera(cfg config.CameraConfig) *Camera {
+	ttl := 1 * time.Second
+	if cfg.SnapshotCacheTTL != nil {
+		ttl = *cfg.SnapshotCacheTTL
+	}
+
 	cam := &Camera{
-		Config: cfg,
+		Config:   cfg,
+		cacheTTL: ttl,
 	}
 
 	if cfg.Address != "" {
@@ -66,6 +81,31 @@ func NewCamera(cfg config.CameraConfig) *Camera {
 	}
 
 	return cam
+}
+
+// SetCacheTTL configures the snapshot in-memory cache TTL for this camera.
+// Set to 0 to disable snapshot caching.
+func (c *Camera) SetCacheTTL(ttl time.Duration) {
+	c.cacheMu.Lock()
+	defer c.cacheMu.Unlock()
+	c.cacheTTL = ttl
+}
+
+// CacheTTL returns the currently configured cache TTL for this camera.
+func (c *Camera) CacheTTL() time.Duration {
+	c.cacheMu.RLock()
+	defer c.cacheMu.RUnlock()
+	return c.cacheTTL
+}
+
+// InvalidateCache invalidates any currently cached snapshot frame and forgets in-flight requests.
+func (c *Camera) InvalidateCache() {
+	c.cacheMu.Lock()
+	c.cachedFrame = nil
+	c.cachedTime = time.Time{}
+	c.cacheGen++
+	c.cacheMu.Unlock()
+	c.sf.Forget("snapshot")
 }
 
 // authenticatedRTSPURL injects camera ONVIF username/password into the RTSP URL if credentials are not already embedded.
@@ -85,7 +125,68 @@ func authenticatedRTSPURL(rawURL, username, password string) string {
 }
 
 // Snapshot captures a still image using either ONVIF native snapshot or RTSP keyframe extraction.
+// Concurrent snapshot requests share a single in-flight camera connection via singleflight,
+// and recent frames are returned immediately from memory if within cache TTL.
 func (c *Camera) Snapshot(ctx context.Context) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	// Fast path: check cached frame under read lock
+	c.cacheMu.RLock()
+	ttl := c.cacheTTL
+	if ttl > 0 && len(c.cachedFrame) > 0 && time.Since(c.cachedTime) < ttl {
+		frame := make([]byte, len(c.cachedFrame))
+		copy(frame, c.cachedFrame)
+		c.cacheMu.RUnlock()
+		return frame, nil
+	}
+	gen := c.cacheGen
+	c.cacheMu.RUnlock()
+
+	// Coalesce concurrent fetches using singleflight
+	ch := c.sf.DoChan("snapshot", func() (any, error) {
+		// Hardware fetch with bounded safety timeout
+		captureCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		data, err := c.capture(captureCtx)
+		if err != nil {
+			return nil, err
+		}
+
+		c.cacheMu.Lock()
+		if c.cacheGen == gen && c.cacheTTL > 0 {
+			c.cachedFrame = data
+			c.cachedTime = time.Now()
+		}
+		c.cacheMu.Unlock()
+
+		return data, nil
+	})
+
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case res, ok := <-ch:
+		if !ok {
+			return nil, errors.New("snapshot channel closed")
+		}
+		if res.Err != nil {
+			return nil, res.Err
+		}
+		data, ok := res.Val.([]byte)
+		if !ok {
+			return nil, errors.New("unexpected snapshot data type")
+		}
+		frame := make([]byte, len(data))
+		copy(frame, data)
+		return frame, nil
+	}
+}
+
+// capture fetches a fresh snapshot directly from configured camera sources (ONVIF or RTSP).
+func (c *Camera) capture(ctx context.Context) ([]byte, error) {
 	method := c.Config.SnapshotMethod
 
 	// Strategy 1: ONVIF HTTP Snapshot (Fastest, zero CGO, <100ms)
@@ -144,6 +245,7 @@ func (c *Camera) PTZMove(ctx context.Context, pan, tilt, zoom float64) error {
 	if c.onvifDevice == nil {
 		return ErrONVIFNotConfigured
 	}
+	c.InvalidateCache()
 	return c.onvifDevice.ContinuousMove(ctx, onvif.PTZMoveCommand{
 		ProfileToken: c.resolveProfileToken(ctx),
 		Pan:          pan,
@@ -157,6 +259,7 @@ func (c *Camera) PTZStop(ctx context.Context) error {
 	if c.onvifDevice == nil {
 		return ErrONVIFNotConfigured
 	}
+	c.InvalidateCache()
 	return c.onvifDevice.Stop(ctx, c.resolveProfileToken(ctx))
 }
 
@@ -165,6 +268,7 @@ func (c *Camera) PTZPreset(ctx context.Context, presetToken string) error {
 	if c.onvifDevice == nil {
 		return ErrONVIFNotConfigured
 	}
+	c.InvalidateCache()
 	return c.onvifDevice.GotoPreset(ctx, onvif.PTZPresetCommand{
 		ProfileToken: c.resolveProfileToken(ctx),
 		PresetToken:  presetToken,

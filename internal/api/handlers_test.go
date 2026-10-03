@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -136,6 +138,100 @@ func TestSnapshotSuccess(t *testing.T) {
 
 	if rr.Body.String() != "MOCK_JPEG_PAYLOAD" {
 		t.Errorf("expected MOCK_JPEG_PAYLOAD, got %q", rr.Body.String())
+	}
+}
+
+func TestSnapshotAPICachingAndCoalescing(t *testing.T) {
+	var snapCount atomic.Int32
+	var mockServer *httptest.Server
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/onvif/media_service" {
+			w.Header().Set("Content-Type", "application/soap+xml; charset=utf-8")
+			resp := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Body>
+    <trt:GetSnapshotUriResponse xmlns:trt="http://www.onvif.org/ver10/media/wsdl">
+      <trt:MediaUri>
+        <trt:Uri>%s/snap.jpg</trt:Uri>
+      </trt:MediaUri>
+    </trt:GetSnapshotUriResponse>
+  </s:Body>
+</s:Envelope>`, mockServer.URL)
+			_, _ = fmt.Fprint(w, resp)
+			return
+		}
+
+		if r.URL.Path == "/snap.jpg" {
+			snapCount.Add(1)
+			time.Sleep(40 * time.Millisecond)
+			w.Header().Set("Content-Type", "image/jpeg")
+			_, _ = w.Write([]byte("HTTP_TEST_IMAGE"))
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+	defer mockServer.Close()
+
+	ttl := 200 * time.Millisecond
+	cfg := &config.Config{
+		Server: config.ServerConfig{Port: 8080, SnapshotCacheTTL: 1 * time.Second},
+		Cameras: map[string]config.CameraConfig{
+			"cam1": {
+				ID:               "cam1",
+				Address:          mockServer.URL,
+				SnapshotMethod:   "onvif",
+				SnapshotCacheTTL: &ttl,
+			},
+		},
+	}
+	mgr := camera.NewManager(cfg, nil)
+	mux := http.NewServeMux()
+	api.RegisterRoutes(mux, mgr, time.Now())
+
+	// 5 concurrent HTTP snapshot requests through the router
+	const concurrency = 5
+	var wg sync.WaitGroup
+	barrier := make(chan struct{})
+	statusCodes := make([]int, concurrency)
+
+	for i := 0; i < concurrency; i++ {
+		idx := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-barrier
+			req := httptest.NewRequest("GET", "/api/v1/cameras/cam1/snapshot", nil)
+			rr := httptest.NewRecorder()
+			mux.ServeHTTP(rr, req)
+			statusCodes[idx] = rr.Code
+		}()
+	}
+
+	close(barrier)
+	wg.Wait()
+
+	for _, code := range statusCodes {
+		if code != http.StatusOK {
+			t.Fatalf("expected 200 OK, got %d", code)
+		}
+	}
+
+	// All 5 concurrent HTTP requests coalesced into 1
+	if got := snapCount.Load(); got != 1 {
+		t.Fatalf("expected 1 fetch for 5 concurrent requests, got %d", got)
+	}
+
+	// Immediate follow-up request hits TTL cache
+	req := httptest.NewRequest("GET", "/api/v1/cameras/cam1/snapshot", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for cached request, got %d", rr.Code)
+	}
+	if got := snapCount.Load(); got != 1 {
+		t.Fatalf("expected fetch count to remain 1 due to TTL cache, got %d", got)
 	}
 }
 

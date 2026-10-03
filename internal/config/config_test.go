@@ -102,3 +102,59 @@ func TestSaveConfig(t *testing.T) {
 		t.Errorf("expected name 'Test Camera', got %q", loaded.Cameras["test_cam"].Name)
 	}
 }
+
+func TestSnapshotCacheTTLConfig(t *testing.T) {
+	// Verify default config has 1s cache TTL
+	def := config.DefaultConfig()
+	if def.Server.SnapshotCacheTTL != 1*time.Second {
+		t.Errorf("expected default snapshot_cache_ttl 1s, got %v", def.Server.SnapshotCacheTTL)
+	}
+
+	yamlContent := `
+server:
+  snapshot_cache_ttl: 2s
+cameras:
+  cam_override:
+    address: "192.168.1.10:80"
+    snapshot_cache_ttl: 500ms
+  cam_disabled:
+    address: "192.168.1.11:80"
+    snapshot_cache_ttl: 0s
+  cam_default:
+    address: "192.168.1.12:80"
+`
+	tmpFile, err := os.CreateTemp("", "cam-proxy-ttl-*.yaml")
+	if err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+
+	if _, err := tmpFile.Write([]byte(yamlContent)); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+	tmpFile.Close()
+
+	cfg, err := config.Load(tmpFile.Name())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if cfg.Server.SnapshotCacheTTL != 2*time.Second {
+		t.Errorf("expected server TTL 2s, got %v", cfg.Server.SnapshotCacheTTL)
+	}
+
+	camOverride := cfg.Cameras["cam_override"]
+	if camOverride.SnapshotCacheTTL == nil || *camOverride.SnapshotCacheTTL != 500*time.Millisecond {
+		t.Errorf("expected cam_override TTL 500ms, got %v", camOverride.SnapshotCacheTTL)
+	}
+
+	camDisabled := cfg.Cameras["cam_disabled"]
+	if camDisabled.SnapshotCacheTTL == nil || *camDisabled.SnapshotCacheTTL != 0 {
+		t.Errorf("expected cam_disabled TTL 0s, got %v", camDisabled.SnapshotCacheTTL)
+	}
+
+	camDefault := cfg.Cameras["cam_default"]
+	if camDefault.SnapshotCacheTTL != nil {
+		t.Errorf("expected cam_default TTL nil, got %v", camDefault.SnapshotCacheTTL)
+	}
+}

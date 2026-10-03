@@ -6,6 +6,7 @@ server:
   port: 8080
   read_timeout: 10s
   write_timeout: 15s
+  snapshot_cache_ttl: 1s                            # In-memory snapshot cache TTL (coalesces rapid dashboard reloads)
 
 mqtt:
   enabled: true
@@ -30,6 +31,7 @@ cameras:
     snapshot_method: "auto"                          # Options: "auto", "onvif", "rtsp"
     pull_events: true                                # Subscribe to ONVIF PullPoint notifications
     profile_token: ""                                # Optional; defaults to first active media profile
+    snapshot_cache_ttl: 500ms                        # Optional per-camera cache TTL override (0s disables)
 
   backyard_ptz:
     name: "Backyard PTZ"

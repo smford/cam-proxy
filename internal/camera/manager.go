@@ -26,7 +26,13 @@ func NewManager(cfg *config.Config, publisher *mqtt.Publisher) *Manager {
 	}
 
 	for id, camCfg := range cfg.Cameras {
-		m.cameras[id] = NewCamera(camCfg)
+		cam := NewCamera(camCfg)
+		if camCfg.SnapshotCacheTTL != nil {
+			cam.SetCacheTTL(*camCfg.SnapshotCacheTTL)
+		} else {
+			cam.SetCacheTTL(cfg.Server.SnapshotCacheTTL)
+		}
+		m.cameras[id] = cam
 	}
 
 	return m
