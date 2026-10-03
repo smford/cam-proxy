@@ -1,0 +1,41 @@
+name: "cam-proxy"
+description: "Ultra-lightweight edge camera gateway for Home Assistant (snapshots, PTZ, MJPEG streaming, and ONVIF-to-MQTT)"
+version: "0.4.0"
+slug: "cam-proxy"
+init: false
+arch:
+  - aarch64
+  - amd64
+startup: services
+boot: auto
+host_network: true
+stage: stable
+homeassistant_api: true
+services:
+  - mqtt:want
+ports:
+  8080/tcp: 8080
+ports_description:
+  8080/tcp: "cam-proxy HTTP REST API, snapshots, and MJPEG stream port"
+options:
+  log_level: "info"
+  snapshot_cache_ttl: "1s"
+  server_port: 8080
+  cameras: []
+schema:
+  log_level: list(debug|info|warn|error)?
+  snapshot_cache_ttl: str?
+  server_port: port?
+  cameras:
+    - id: str
+      name: str?
+      onvif_url: str?
+      snapshot_url: str?
+      rtsp_url: str?
+      username: str?
+      password: password?
+      pull_events: bool?
+      cache_ttl: str?
+      ptz:
+        enabled: bool?
+        profile_token: str?

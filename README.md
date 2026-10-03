@@ -62,7 +62,18 @@ brew tap smford/tap
 brew install cam-proxy
 ```
 
-### 2. Raspberry Pi & Linux Edge (ARM64 / ARMv7)
+### 2. Home Assistant Add-on (Home Assistant OS / Supervised)
+Install `cam-proxy` directly inside Home Assistant:
+1. In Home Assistant, navigate to **Settings** ➔ **Add-ons** ➔ **Add-on Store**.
+2. Click the top-right menu (⋮) ➔ **Repositories** ➔ Add repository:
+   ```text
+   https://github.com/smford/cam-proxy
+   ```
+3. Locate **cam-proxy** in the add-on store and click **Install**.
+4. Configure your cameras in the **Configuration** tab and click **Start**.
+*(If the official Mosquitto broker add-on is installed, MQTT event forwarding and Home Assistant auto-discovery configure automatically!)*
+
+### 3. Raspberry Pi & Linux Edge (ARM64 / ARMv7)
 
 `cam-proxy` is optimized for edge hardware (Raspberry Pi 3/4/5 and Zero 2 W) running Raspberry Pi OS (64-bit `arm64` or 32-bit `armv7l`), idling at < 15MB RAM and 0% CPU.
 
@@ -114,7 +125,7 @@ scp cam-proxy-linux-arm64 pi@raspberrypi.local:/tmp/cam-proxy
 ssh pi@raspberrypi.local "sudo install -m 755 /tmp/cam-proxy /usr/local/bin/cam-proxy && rm /tmp/cam-proxy"
 ```
 
-### 3. Docker Container
+### 4. Docker Container
 Official multi-architecture images (`linux/amd64`, `linux/arm64`) with `ffmpeg` and `ca-certificates` pre-installed:
 ```bash
 docker run -d \
@@ -125,10 +136,10 @@ docker run -d \
   ghcr.io/smford/cam-proxy:latest
 ```
 
-### 4. Pre-Built Static Binaries
+### 5. Pre-Built Static Binaries
 Download pre-compiled, zero-dependency static binaries (`linux/amd64`, `linux/arm64`, `darwin/amd64`, `darwin/arm64`) with SHA256 checksums from the **[GitHub Releases](https://github.com/smford/cam-proxy/releases)** page.
 
-### 5. Build from Source
+### 6. Build from Source
 Requires Go 1.22+:
 ```bash
 git clone https://github.com/smford/cam-proxy.git
@@ -594,6 +605,73 @@ When MQTT and discovery are enabled (`discovery: true`, enabled by default), `ca
 - **Device Linking & Topology**: Entities are grouped under their respective camera device cards with hardware metadata (`manufacturer`, `model`) and linked to `cam-proxy` via `via_device: "cam-proxy"`.
 - **Zero Configuration**: Discovery messages are published with `retained: true` and QoS 1, ensuring Home Assistant automatically discovers or restores sensor states upon startup or broker reconnection.
 
+
+---
+
+## Home Assistant Integration
+
+`cam-proxy` is engineered as a primary companion gateway for Home Assistant. It offloads snapshot polling, request coalescing, and ONVIF event stream parsing so your Lovelace dashboards remain instant (<100ms) without locking up camera SOCs.
+
+For full architectural details, automations, and advanced dashboard cards, see **[docs/home-assistant.md](docs/home-assistant.md)**.
+
+### 1. Home Assistant Add-on Installation
+If you use Home Assistant OS or Supervised:
+1. Go to **Settings** ➔ **Add-ons** ➔ **Add-on Store**.
+2. Click **Repositories** (top-right menu ⋮) and add: `https://github.com/smford/cam-proxy`
+3. Click **cam-proxy** ➔ **Install** ➔ configure your cameras in the add-on UI ➔ **Start**.
+*(If the Mosquitto broker add-on is installed, MQTT event forwarding and sensor discovery configure automatically!)*
+
+### 2. Fast Dashboard Camera (Generic Camera)
+Add each camera via **Settings** ➔ **Devices & Services** ➔ **Add Integration** ➔ **Generic Camera**:
+- **Still Image URL**: `http://<cam-proxy-host>:8080/api/v1/cameras/<id>/snapshot`
+- **Stream Source**: `rtsp://<camera-ip>:554/live/ch0` *(or `http://<cam-proxy-host>:8080/api/v1/cameras/<id>/stream.mjpg`)*
+- **Framerate**: `2` (recommended for responsive previews without tablet lag)
+
+### 3. PTZ Control via REST Commands
+Control pan, tilt, zoom, and presets from Lovelace cards by adding REST commands to `configuration.yaml`:
+```yaml
+rest_command:
+  cam_ptz_move:
+    url: "http://<cam-proxy-host>:8080/api/v1/cameras/{{ camera_id }}/ptz"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    payload: >-
+      {
+        "action": "move",
+        "pan": {{ pan | default(0.0) }},
+        "tilt": {{ tilt | default(0.0) }},
+        "zoom": {{ zoom | default(0.0) }}
+      }
+
+  cam_ptz_stop:
+    url: "http://<cam-proxy-host>:8080/api/v1/cameras/{{ camera_id }}/ptz"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    payload: '{"action": "stop"}'
+
+  cam_ptz_preset:
+    url: "http://<cam-proxy-host>:8080/api/v1/cameras/{{ camera_id }}/ptz"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    payload: >-
+      {
+        "action": "preset",
+        "preset_token": "{{ preset_token }}"
+      }
+```
+
+### 4. Lovelace Dashboard Card (Picture Glance + Motion)
+```yaml
+type: picture-glance
+title: Front Door
+camera_image: camera.front_door
+entities:
+  - binary_sensor.front_door_motion
+  - binary_sensor.front_door_tamper
+```
 
 ---
 

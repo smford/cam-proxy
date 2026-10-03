@@ -243,3 +243,122 @@ func TestGitHubStatsWorkflow(t *testing.T) {
 		t.Errorf("expected gh-stats workflow to trigger on pull_request and push")
 	}
 }
+
+func TestHomeAssistantAddonAndDocs(t *testing.T) {
+	root := findRepoRoot(t)
+
+	// 1. Verify repository.yaml
+	repoYAMLPath := filepath.Join(root, "repository.yaml")
+	data, err := os.ReadFile(repoYAMLPath)
+	if err != nil {
+		t.Fatalf("failed to read repository.yaml: %v", err)
+	}
+	var repoMeta struct {
+		Name       string `yaml:"name"`
+		URL        string `yaml:"url"`
+		Maintainer string `yaml:"maintainer"`
+	}
+	if err := yaml.Unmarshal(data, &repoMeta); err != nil {
+		t.Fatalf("failed to parse repository.yaml: %v", err)
+	}
+	if repoMeta.Name == "" || repoMeta.URL == "" {
+		t.Errorf("repository.yaml missing name or url: %+v", repoMeta)
+	}
+
+	// 2. Verify ha-addon/cam-proxy/config.yaml
+	configYAMLPath := filepath.Join(root, "ha-addon", "cam-proxy", "config.yaml")
+	cfgData, err := os.ReadFile(configYAMLPath)
+	if err != nil {
+		t.Fatalf("failed to read ha-addon/cam-proxy/config.yaml: %v", err)
+	}
+	var addonConfig struct {
+		Name string   `yaml:"name"`
+		Slug string   `yaml:"slug"`
+		Arch []string `yaml:"arch"`
+	}
+	if err := yaml.Unmarshal(cfgData, &addonConfig); err != nil {
+		t.Fatalf("failed to parse ha-addon/cam-proxy/config.yaml: %v", err)
+	}
+	if addonConfig.Slug != "cam-proxy" {
+		t.Errorf("expected slug 'cam-proxy', got %q", addonConfig.Slug)
+	}
+	hasAmd64, hasAarch64 := false, false
+	for _, a := range addonConfig.Arch {
+		if a == "amd64" {
+			hasAmd64 = true
+		}
+		if a == "aarch64" {
+			hasAarch64 = true
+		}
+	}
+	if !hasAmd64 || !hasAarch64 {
+		t.Errorf("expected addon config to support amd64 and aarch64, got %v", addonConfig.Arch)
+	}
+
+	// 3. Verify ha-addon/cam-proxy/build.yaml
+	buildYAMLPath := filepath.Join(root, "ha-addon", "cam-proxy", "build.yaml")
+	buildData, err := os.ReadFile(buildYAMLPath)
+	if err != nil {
+		t.Fatalf("failed to read ha-addon/cam-proxy/build.yaml: %v", err)
+	}
+	var buildConfig struct {
+		BuildFrom map[string]string `yaml:"build_from"`
+	}
+	if err := yaml.Unmarshal(buildData, &buildConfig); err != nil {
+		t.Fatalf("failed to parse ha-addon/cam-proxy/build.yaml: %v", err)
+	}
+	if buildConfig.BuildFrom["amd64"] == "" || buildConfig.BuildFrom["aarch64"] == "" {
+		t.Errorf("expected build.yaml to define build_from for amd64 and aarch64: %+v", buildConfig)
+	}
+
+	// 4. Verify ha-addon/cam-proxy/run.sh
+	runScriptPath := filepath.Join(root, "ha-addon", "cam-proxy", "run.sh")
+	info, err := os.Stat(runScriptPath)
+	if err != nil {
+		t.Fatalf("failed to stat ha-addon/cam-proxy/run.sh: %v", err)
+	}
+	if info.Mode()&0111 == 0 {
+		t.Errorf("ha-addon/cam-proxy/run.sh is not executable: mode %v", info.Mode())
+	}
+
+	// 5. Verify ha-addon/cam-proxy/Dockerfile & DOCS.md
+	dockerfilePath := filepath.Join(root, "ha-addon", "cam-proxy", "Dockerfile")
+	if _, err := os.Stat(dockerfilePath); err != nil {
+		t.Errorf("expected ha-addon/cam-proxy/Dockerfile to exist: %v", err)
+	}
+	docsPath := filepath.Join(root, "ha-addon", "cam-proxy", "DOCS.md")
+	if _, err := os.Stat(docsPath); err != nil {
+		t.Errorf("expected ha-addon/cam-proxy/DOCS.md to exist: %v", err)
+	}
+
+	// 6. Verify docs/home-assistant.md
+	guidePath := filepath.Join(root, "docs", "home-assistant.md")
+	guideData, err := os.ReadFile(guidePath)
+	if err != nil {
+		t.Fatalf("failed to read docs/home-assistant.md: %v", err)
+	}
+	guideContent := string(guideData)
+	if !strings.Contains(guideContent, "Generic Camera") {
+		t.Errorf("expected docs/home-assistant.md to cover Generic Camera")
+	}
+	if !strings.Contains(guideContent, "rest_command") {
+		t.Errorf("expected docs/home-assistant.md to cover rest_command for PTZ")
+	}
+	if !strings.Contains(guideContent, "MQTT") {
+		t.Errorf("expected docs/home-assistant.md to cover MQTT")
+	}
+
+	// 7. Verify docs/index.html includes Home Assistant section and nav link
+	indexHTMLPath := filepath.Join(root, "docs", "index.html")
+	indexData, err := os.ReadFile(indexHTMLPath)
+	if err != nil {
+		t.Fatalf("failed to read docs/index.html: %v", err)
+	}
+	indexContent := string(indexData)
+	if !strings.Contains(indexContent, "id=\"home-assistant\"") {
+		t.Errorf("expected docs/index.html to contain section id='home-assistant'")
+	}
+	if !strings.Contains(indexContent, "href=\"#home-assistant\"") {
+		t.Errorf("expected docs/index.html to contain nav link href='#home-assistant'")
+	}
+}

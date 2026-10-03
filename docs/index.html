@@ -812,6 +812,7 @@
         <a href="#comparison">Comparison</a>
         <a href="#when-to-use">Decision Guide</a>
         <a href="#features">Features</a>
+        <a href="#home-assistant">Home Assistant</a>
         <a href="#install">Installation</a>
         <a href="#api">API</a>
         <a href="https://github.com/smford/cam-proxy/blob/main/docs/architecture.md" target="_blank" rel="noopener">Architecture</a>
@@ -1165,14 +1166,128 @@
       </div>
     </section>
 
+    <!-- Home Assistant Integration Section -->
+    <section id="home-assistant" style="margin-bottom: 64px; padding-top: 10px;">
+      <h2 class="section-title">Home Assistant Integration</h2>
+      <p class="section-subtitle">
+        Eliminate dashboard lag and camera crashes. Serve sub-100ms snapshots, PTZ D-pad controls, and automatic MQTT motion sensors directly into Lovelace.
+      </p>
+
+      <div class="features-grid" style="margin-bottom: 32px;">
+        <div class="feature-card">
+          <div class="feature-icon">🏠</div>
+          <h3>Official Add-on Ready</h3>
+          <p>Install directly from your Home Assistant Add-on Store with auto-configuration for the Mosquitto MQTT broker.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3>Sub-100ms Snapshots</h3>
+          <p>Feed Lovelace <code>picture-glance</code> cards via native Generic Camera without freezing low-cost camera SOCs.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🎮</div>
+          <h3>PTZ REST Controls</h3>
+          <p>Pan, tilt, zoom, and recall presets right from your dashboard buttons with clean HTTP POST commands.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📡</div>
+          <h3>Zero-Config MQTT Discovery</h3>
+          <p>ONVIF PullPoint events automatically appear as <code>binary_sensor</code> entities in Home Assistant.</p>
+        </div>
+      </div>
+
+      <div class="tabs-wrapper">
+        <div class="tab-nav">
+          <button class="tab-btn active" onclick="switchTab('ha-addon-guide', this)">Add-on Setup</button>
+          <button class="tab-btn" onclick="switchTab('ha-generic-cam', this)">Generic Camera</button>
+          <button class="tab-btn" onclick="switchTab('ha-ptz-commands', this)">PTZ REST Commands</button>
+          <button class="tab-btn" onclick="switchTab('ha-lovelace-card', this)">Lovelace Cards</button>
+        </div>
+
+        <div id="ha-addon-guide" class="tab-pane active">
+          <p style="margin-bottom: 12px; color: var(--text-muted);">
+            Add the <code>cam-proxy</code> repository in <strong>Settings</strong> ➔ <strong>Add-ons</strong> ➔ <strong>Add-on Store</strong> ➔ <strong>Repositories</strong>:
+          </p>
+          <div class="code-block">
+            <button class="code-copy-btn" onclick="copyBlock(this)">Copy</button>
+            <pre><code>https://github.com/smford/cam-proxy</code></pre>
+          </div>
+          <p style="margin-top: 12px; color: var(--text-dim); font-size: 0.9rem;">
+            When using the official Mosquitto broker add-on, <code>cam-proxy</code> auto-discovers broker credentials and provisions MQTT entities automatically.
+          </p>
+        </div>
+
+        <div id="ha-generic-cam" class="tab-pane">
+          <p style="margin-bottom: 12px; color: var(--text-muted);">
+            Add your camera via <strong>Settings</strong> ➔ <strong>Devices & Services</strong> ➔ <strong>Generic Camera</strong>:
+          </p>
+          <div class="code-block">
+            <button class="code-copy-btn" onclick="copyBlock(this)">Copy</button>
+            <pre><code># Still Image URL (sub-100ms with hardware coalescing)
+http://localhost:8080/api/v1/cameras/front-door/snapshot
+
+# Stream Source (RTSP or MJPEG)
+rtsp://192.168.1.50:554/live/ch0
+# or: http://localhost:8080/api/v1/cameras/front-door/stream.mjpg
+
+# Framerate: 2 fps (keeps Lovelace tablets fast and cool)</code></pre>
+          </div>
+        </div>
+
+        <div id="ha-ptz-commands" class="tab-pane">
+          <p style="margin-bottom: 12px; color: var(--text-muted);">
+            Define REST commands in <code>configuration.yaml</code> to drive camera movements:
+          </p>
+          <div class="code-block">
+            <button class="code-copy-btn" onclick="copyBlock(this)">Copy</button>
+            <pre><code>rest_command:
+  cam_ptz_move:
+    url: "http://localhost:8080/api/v1/cameras/{{ camera_id }}/ptz"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    payload: '{"action":"move","pan":{{ pan | default(0) }},"tilt":{{ tilt | default(0) }},"zoom":{{ zoom | default(0) }}}'
+
+  cam_ptz_stop:
+    url: "http://localhost:8080/api/v1/cameras/{{ camera_id }}/ptz"
+    method: POST
+    headers:
+      Content-Type: "application/json"
+    payload: '{"action":"stop"}'</code></pre>
+          </div>
+        </div>
+
+        <div id="ha-lovelace-card" class="tab-pane">
+          <p style="margin-bottom: 12px; color: var(--text-muted);">
+            Display camera snapshots with auto-discovered motion sensor status:
+          </p>
+          <div class="code-block">
+            <button class="code-copy-btn" onclick="copyBlock(this)">Copy</button>
+            <pre><code>type: picture-glance
+title: Front Door
+camera_image: camera.front_door
+entities:
+  - binary_sensor.front_door_motion
+  - binary_sensor.front_door_tamper</code></pre>
+          </div>
+          <p style="margin-top: 14px;">
+            <a href="https://github.com/smford/cam-proxy/blob/main/docs/home-assistant.md" target="_blank" rel="noopener" style="font-weight: 600;">
+              View Complete Home Assistant Guide (with D-Pad & Automations) ➔
+            </a>
+          </p>
+        </div>
+      </div>
+    </section>
+
     <!-- Installation & Setup Tabs -->
     <section id="install">
       <h2 class="section-title">Quick Installation</h2>
-      <p class="section-subtitle">Install with Homebrew, Docker, or standalone binary in seconds.</p>
+      <p class="section-subtitle">Install with Homebrew, Home Assistant Add-on, Docker, or standalone binary in seconds.</p>
 
       <div class="tabs-wrapper">
         <div class="tab-nav">
           <button class="tab-btn active" onclick="switchTab('tab-homebrew', this)">Homebrew</button>
+          <button class="tab-btn" onclick="switchTab('tab-ha', this)">Home Assistant</button>
           <button class="tab-btn" onclick="switchTab('tab-docker', this)">Docker</button>
           <button class="tab-btn" onclick="switchTab('tab-rpi', this)">Raspberry Pi / Systemd</button>
           <button class="tab-btn" onclick="switchTab('tab-tui', this)">Terminal Wizard (TUI)</button>
@@ -1187,6 +1302,18 @@ brew install cam-proxy
 
 # Start the gateway with your configuration
 cam-proxy -config cam-proxy.yaml</code></pre>
+          </div>
+        </div>
+
+        <div id="tab-ha" class="tab-pane">
+          <p style="margin-bottom: 12px; color: var(--text-muted);">Install the official add-on in Home Assistant OS / Supervised:</p>
+          <div class="code-block">
+            <button class="code-copy-btn" onclick="copyBlock(this)">Copy</button>
+            <pre><code># 1. In Home Assistant: Settings -> Add-ons -> Add-on Store -> Repositories
+# 2. Add repository:
+https://github.com/smford/cam-proxy
+
+# 3. Locate 'cam-proxy', click 'Install', configure cameras, and click 'Start'</code></pre>
           </div>
         </div>
 
