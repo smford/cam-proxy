@@ -61,7 +61,7 @@ flowchart TD
     end
 
     %% Client Interactions
-    Clients -->|HTTP Requests| Middleware
+    Clients -->|"HTTP Requests"| Middleware
     Middleware --> ServeMux
     ServeMux --> SnapshotEP
     ServeMux --> PTZEP
@@ -69,36 +69,36 @@ flowchart TD
     ServeMux --> MetricsEP
     ServeMux --> OpenAPIEP
 
-    MetricsEP -.->|Scrapes| MetricsRegistry
-    Prometheus -->|Polls /metrics| MetricsEP
+    MetricsEP -.->|"Scrapes"| MetricsRegistry
+    Prometheus -->|"Polls /metrics"| MetricsEP
 
     %% API to Core Engine
     SnapshotEP --> SingleFlight
-    SingleFlight -->|Check Cache| FrameCache
-    FrameCache -->|Cache Hit: Return Cached JPEG| SnapshotEP
-    FrameCache -->|Cache Miss: Fetch Once| CameraManager
+    SingleFlight -->|"Check Cache"| FrameCache
+    FrameCache -->|"Cache Hit: Return Cached JPEG"| SnapshotEP
+    FrameCache -->|"Cache Miss: Fetch Once"| CameraManager
 
-    PTZEP -->|Execute Command| CameraManager
-    CameraManager -->|Invalidate Frame Cache| FrameCache
-    CameraManager -.->|Update Online State & Latency| HealthTracker
-    StatusEP -.->|Read Status| HealthTracker
+    PTZEP -->|"Execute Command"| CameraManager
+    CameraManager -->|"Invalidate Frame Cache"| FrameCache
+    CameraManager -.->|"Update Online State & Latency"| HealthTracker
+    StatusEP -.->|"Read Status"| HealthTracker
 
     %% Protocol Interactions
-    CameraManager -->|Primary Snapshot & PTZ| ONVIFClient
-    CameraManager -->|Fallback Keyframe Capture| RTSPClient
+    CameraManager -->|"Primary Snapshot & PTZ"| ONVIFClient
+    CameraManager -->|"Fallback Keyframe Capture"| RTSPClient
 
-    ONVIFClient -->|HTTP Digest Snapshot Request| CameraHardware
-    ONVIFClient -->|SOAP ContinuousMove / Stop / Preset| CameraHardware
-    ONVIFClient -->|PullPoint Long-Polling| CameraHardware
-    RTSPClient -->|RTSP Session & RTP Keyframe Fetch| CameraHardware
+    ONVIFClient -->|"HTTP Digest Snapshot Request"| CameraHardware
+    ONVIFClient -->|"SOAP ContinuousMove / Stop / Preset"| CameraHardware
+    ONVIFClient -->|"PullPoint Long-Polling"| CameraHardware
+    RTSPClient -->|"RTSP Session & RTP Keyframe Fetch"| CameraHardware
 
     %% Events & Discovery
-    ONVIFClient -->|Normalized Motion/Tamper Events| MQTTEngine
-    CameraManager -->|Startup Auto-Discovery Payloads| MQTTEngine
-    MQTTEngine -->|Publish MQTT Topics & Discovery| MQTTBroker
-    MQTTBroker -.->|State & Sensor Updates| HomeAssistant
+    ONVIFClient -->|"Normalized Motion/Tamper Events"| MQTTEngine
+    CameraManager -->|"Startup Auto-Discovery Payloads"| MQTTEngine
+    MQTTEngine -->|"Publish MQTT Topics & Discovery"| MQTTBroker
+    MQTTBroker -.->|"State & Sensor Updates"| HomeAssistant
 
-    DiscoveryEngine -.->|UDP Multicast Probe| CameraHardware
+    DiscoveryEngine -.->|"UDP Multicast Probe"| CameraHardware
 ```
 
 ---
@@ -123,8 +123,8 @@ flowchart TD
 
     Router --> CacheCheck{"Valid Cache Hit?"}
 
-    CacheCheck -->|Yes (< TTL)| ServeCached["Serve Cached Frame (Defensive Copy)"]
-    CacheCheck -->|No (Expired or Empty)| SFGroup["singleflight.Group (sf.DoChan)"]
+    CacheCheck -->|"Yes (within TTL)"| ServeCached["Serve Cached Frame (Defensive Copy)"]
+    CacheCheck -->|"No (expired or empty)"| SFGroup["singleflight.Group (sf.DoChan)"]
 
     subgraph SingleFlightBarrier["Single-Flight Coalescing Barrier"]
         SFGroup --> Leader["1 In-Flight Goroutine"]
@@ -132,14 +132,14 @@ flowchart TD
     end
 
     Leader --> FetchSource{"Method Selection"}
-    FetchSource -->|Method: onvif / auto| ONVIFCall["ONVIF HTTP Snapshot (<100ms)"]
-    FetchSource -->|Method: rtsp / fallback| RTSPCall["RTSP Keyframe Grab (gortsplib)"]
+    FetchSource -->|"Method: onvif or auto"| ONVIFCall["ONVIF HTTP Snapshot (under 100ms)"]
+    FetchSource -->|"Method: rtsp or fallback"| RTSPCall["RTSP Keyframe Grab (gortsplib)"]
 
     ONVIFCall --> SuccessCheck{"Fetch Success?"}
     RTSPCall --> SuccessCheck
 
-    SuccessCheck -->|Yes| UpdateCache["Store Frame & Set TTL Expiry"]
-    SuccessCheck -->|ONVIF Failed (auto)| RTSPCall
+    SuccessCheck -->|"Yes"| UpdateCache["Store Frame & Set TTL Expiry"]
+    SuccessCheck -->|"ONVIF Failed (auto fallback)"| RTSPCall
 
     UpdateCache --> Distribute["Distribute Defensive Copies to All Waiting Callers"]
 ```
