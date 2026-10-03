@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run gh-stats Action
-        uses: smford/gh-stats@f240f94626bc69b121ca28f4911292bbde872ce2 # v0.11.1
+        uses: smford/gh-stats@75d3fef772635ee4bfdbba8b122709218d6a86c6
         with:
           target: pr
           output: gh-stats-pr.sarif
@@ -48,7 +48,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run gh-stats Action
-        uses: smford/gh-stats@f240f94626bc69b121ca28f4911292bbde872ce2 # v0.11.1
+        uses: smford/gh-stats@75d3fef772635ee4bfdbba8b122709218d6a86c6
         with:
           target: repo
           commit-limit: '250'
