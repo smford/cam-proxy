@@ -541,3 +541,26 @@ Or directly using `uvx`:
 ```bash
 uvx semgrep scan --config auto
 ```
+
+---
+
+## Dynamic Application Security Testing (DAST)
+
+`camstop` runs automated Dynamic Application Security Testing (DAST) via [`.github/workflows/dast.yml`](.github/workflows/dast.yml) on push to `main`, pull requests, weekly scheduled runs (Mondays at 08:00 UTC), or manual `workflow_dispatch`:
+
+1. **Service Container Spin-Up**:
+   - Compiles and packages `camstop` into a test container image (`camstop:dast`).
+   - Launches `camstop` as a background service container mounted with a lightweight test configuration ([`.zap/dast-config.yaml`](.zap/dast-config.yaml)).
+   - Polls `GET /healthz` until the HTTP daemon is fully initialized and reporting healthy status.
+
+2. **OWASP ZAP Baseline Scan**:
+   - Executes the official [`zaproxy/action-baseline`](https://github.com/zaproxy/action-baseline) container targeting the running `camstop` daemon at `http://localhost:8080`.
+   - Actively spiders API endpoints (`/healthz`, `/api/v1/cameras`, `/api/v1/cameras/{id}/snapshot`, `/api/v1/cameras/{id}/ptz`) and passively evaluates HTTP responses against OWASP Top 10 vulnerabilities.
+   - Applies API-tailored rule overrides defined in [`.zap/rules.tsv`](.zap/rules.tsv).
+   - Generates comprehensive HTML and Markdown security audit reports stored as GitHub Actions artifacts (`zap-baseline-report`).
+
+### Local DAST Scanning
+Spin up `camstop` and run the OWASP ZAP Baseline scan locally:
+```bash
+make dast
+```

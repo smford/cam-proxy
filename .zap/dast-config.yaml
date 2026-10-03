@@ -1,0 +1,21 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+  read_timeout: 10s
+  write_timeout: 15s
+
+mqtt:
+  enabled: false
+
+discovery:
+  enabled: false
+
+cameras:
+  dast_cam:
+    name: "DAST Test Camera"
+    address: "127.0.0.1:8000"
+    rtsp_url: "rtsp://127.0.0.1:8554/live"
+    onvif_username: "admin"
+    onvif_password: "adminpassword"
+    snapshot_method: "auto"
+    pull_events: false

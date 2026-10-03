@@ -9,7 +9,7 @@ LDFLAGS     := -s -w \
                -X main.commit=$(COMMIT) \
                -X main.date=$(DATE)
 
-.PHONY: all build clean test lint run scan sast release-snapshot tag-patch tag-minor tag-major docker-build docker-run
+.PHONY: all build clean test lint run scan sast dast release-snapshot tag-patch tag-minor tag-major docker-build docker-run
 
 all: build
 
@@ -27,6 +27,15 @@ test:
 
 sast:
 	uvx semgrep scan --config auto
+
+dast: docker-build
+	docker run -d --name camstop-dast-local --rm -p 8080:8080 -v $$(pwd)/.zap/dast-config.yaml:/etc/camstop/camstop.yaml:ro $(BINARY_NAME):latest
+	@echo "Waiting for camstop to start..."
+	@sleep 2
+	@curl -sf http://127.0.0.1:8080/healthz || (docker stop camstop-dast-local && exit 1)
+	@echo "Running OWASP ZAP Baseline Scan..."
+	docker run --rm --network host -v $$(pwd)/.zap:/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://localhost:8080 -c rules.tsv -m 3 || true
+	docker stop camstop-dast-local
 
 scan: build
 	./$(BINARY_NAME) --scan
