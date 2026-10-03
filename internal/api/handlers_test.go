@@ -94,6 +94,75 @@ func TestHealthz(t *testing.T) {
 	if body["status"] != "ok" {
 		t.Errorf("expected status 'ok', got %v", body["status"])
 	}
+
+	cams, ok := body["cameras"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected cameras map in healthz response")
+	}
+	if _, ok := cams["driveway"]; !ok {
+		t.Errorf("expected driveway camera in healthz cameras")
+	}
+}
+
+func TestStatusEndpoint(t *testing.T) {
+	mux, _, mockServer := setupTestServer()
+	defer mockServer.Close()
+
+	req := httptest.NewRequest("GET", "/api/v1/status", nil)
+	rr := httptest.NewRecorder()
+
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", rr.Code)
+	}
+
+	var body map[string]any
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode JSON response: %v", err)
+	}
+
+	if body["status"] != "ok" {
+		t.Errorf("expected status 'ok', got %v", body["status"])
+	}
+	if _, ok := body["cameras"]; !ok {
+		t.Errorf("expected cameras map in status response")
+	}
+}
+
+func TestMetricsEndpoint(t *testing.T) {
+	mux, mgr, mockServer := setupTestServer()
+	defer mockServer.Close()
+
+	// Perform a snapshot to trigger snapshot metrics
+	snapReq := httptest.NewRequest("GET", "/api/v1/cameras/driveway/snapshot", nil)
+	snapRR := httptest.NewRecorder()
+	mux.ServeHTTP(snapRR, snapReq)
+
+	// Record an MQTT event
+	mgr.Metrics().RecordMQTTEvent("driveway", "published")
+
+	req := httptest.NewRequest("GET", "/metrics", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for /metrics, got %d", rr.Code)
+	}
+
+	body := rr.Body.String()
+	requiredMetrics := []string{
+		"cam_proxy_snapshots_total",
+		"cam_proxy_snapshot_duration_seconds",
+		"cam_proxy_camera_online",
+		"cam_proxy_mqtt_events_total",
+	}
+
+	for _, metricName := range requiredMetrics {
+		if !strings.Contains(body, metricName) {
+			t.Errorf("/metrics response missing expected metric %s\nBody:\n%s", metricName, body)
+		}
+	}
 }
 
 func TestListCameras(t *testing.T) {

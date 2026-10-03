@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/smford/cam-proxy/internal/config"
+	"github.com/smford/cam-proxy/internal/metrics"
 	"github.com/smford/cam-proxy/internal/mqtt"
 	"github.com/smford/cam-proxy/internal/onvif"
 )
@@ -16,17 +17,30 @@ type Manager struct {
 	mu        sync.RWMutex
 	cameras   map[string]*Camera
 	publisher *mqtt.Publisher
+	metrics   *metrics.Metrics
 }
 
-// NewManager creates a camera manager.
+// NewManager creates a camera manager with default metrics.
 func NewManager(cfg *config.Config, publisher *mqtt.Publisher) *Manager {
+	return NewManagerWithMetrics(cfg, publisher, nil)
+}
+
+// NewManagerWithMetrics creates a camera manager with custom metrics.
+func NewManagerWithMetrics(cfg *config.Config, publisher *mqtt.Publisher, met *metrics.Metrics) *Manager {
+	if met == nil {
+		met = metrics.NewMetrics()
+	}
+
 	m := &Manager{
 		cameras:   make(map[string]*Camera),
 		publisher: publisher,
+		metrics:   met,
 	}
 
 	for id, camCfg := range cfg.Cameras {
 		cam := NewCamera(camCfg)
+		cam.SetMetrics(met)
+		met.SetCameraOnline(id, false)
 		if camCfg.SnapshotCacheTTL != nil {
 			cam.SetCacheTTL(*camCfg.SnapshotCacheTTL)
 		} else {
@@ -36,6 +50,13 @@ func NewManager(cfg *config.Config, publisher *mqtt.Publisher) *Manager {
 	}
 
 	return m
+}
+
+// Metrics returns the Prometheus metrics collector used by the manager.
+func (m *Manager) Metrics() *metrics.Metrics {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.metrics
 }
 
 // Start begins background services like event subscriptions.
@@ -50,6 +71,13 @@ func (m *Manager) Start(ctx context.Context) error {
 				if m.publisher != nil {
 					if err := m.publisher.PublishEvent(ev); err != nil {
 						slog.Error("failed to publish MQTT event", "camera_id", ev.CameraID, "err", err)
+						if m.metrics != nil {
+							m.metrics.RecordMQTTEvent(ev.CameraID, "error")
+						}
+					} else {
+						if m.metrics != nil {
+							m.metrics.RecordMQTTEvent(ev.CameraID, "published")
+						}
 					}
 				}
 			})
@@ -80,4 +108,25 @@ func (m *Manager) ListCameras() []*Camera {
 		list = append(list, cam)
 	}
 	return list
+}
+
+// GetCameraHealth retrieves operational health for a specific camera ID.
+func (m *Manager) GetCameraHealth(id string) (CameraHealth, error) {
+	cam, err := m.GetCamera(id)
+	if err != nil {
+		return CameraHealth{}, err
+	}
+	return cam.Health(), nil
+}
+
+// ListCameraHealth returns a map of camera ID to CameraHealth for all cameras.
+func (m *Manager) ListCameraHealth() map[string]CameraHealth {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	res := make(map[string]CameraHealth, len(m.cameras))
+	for id, cam := range m.cameras {
+		res[id] = cam.Health()
+	}
+	return res
 }

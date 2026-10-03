@@ -508,3 +508,103 @@ func TestManagerCacheTTLConfiguration(t *testing.T) {
 		t.Errorf("expected 0s disabled TTL, got %v", camDisabled.CacheTTL())
 	}
 }
+
+func TestCameraHealthTracking(t *testing.T) {
+	var shouldFail atomic.Bool
+	var serverURL string
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/onvif/media_service" {
+			if shouldFail.Load() {
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/soap+xml; charset=utf-8")
+			resp := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?>
+<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope">
+  <s:Body>
+    <trt:GetSnapshotUriResponse xmlns:trt="http://www.onvif.org/ver10/media/wsdl">
+      <trt:MediaUri>
+        <trt:Uri>%s/snapshot.jpg</trt:Uri>
+      </trt:MediaUri>
+    </trt:GetSnapshotUriResponse>
+  </s:Body>
+</s:Envelope>`, serverURL)
+			_, _ = fmt.Fprint(w, resp)
+			return
+		}
+
+		if r.URL.Path == "/snapshot.jpg" {
+			if shouldFail.Load() {
+				http.Error(w, "camera disconnected", http.StatusServiceUnavailable)
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+			w.Header().Set("Content-Type", "image/jpeg")
+			_, _ = w.Write([]byte("HEALTH_JPEG"))
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+	defer mockServer.Close()
+	serverURL = mockServer.URL
+
+	cam := camera.NewCamera(config.CameraConfig{
+		ID:             "health_cam",
+		Address:        mockServer.URL,
+		SnapshotMethod: "onvif",
+	})
+	cam.SetCacheTTL(0)
+
+	// Initial state: not seen, offline
+	h0 := cam.Health()
+	if h0.Online {
+		t.Errorf("expected initial online to be false")
+	}
+	if h0.LastSeen != nil {
+		t.Errorf("expected initial last_seen to be nil")
+	}
+	if h0.LastSnapshotLatencyMS != 0 {
+		t.Errorf("expected initial latency to be 0")
+	}
+
+	// 1. Successful snapshot
+	_, err := cam.Snapshot(context.Background())
+	if err != nil {
+		t.Fatalf("snapshot failed: %v", err)
+	}
+
+	h1 := cam.Health()
+	if !h1.Online {
+		t.Errorf("expected online to be true after success")
+	}
+	if h1.LastSeen == nil {
+		t.Errorf("expected last_seen to be populated after success")
+	}
+	if h1.LastSnapshotLatencyMS < 5 {
+		t.Errorf("expected latency to be recorded (>5ms), got %d", h1.LastSnapshotLatencyMS)
+	}
+	if h1.LastError != "" {
+		t.Errorf("expected no last_error after success, got %q", h1.LastError)
+	}
+
+	// 2. Failing snapshot
+	shouldFail.Store(true)
+	_, err = cam.Snapshot(context.Background())
+	if err == nil {
+		t.Fatalf("expected snapshot error, got nil")
+	}
+
+	h2 := cam.Health()
+	if h2.Online {
+		t.Errorf("expected online to be false after failure")
+	}
+	if h2.LastError == "" {
+		t.Errorf("expected last_error to be populated after failure")
+	}
+	// LastSeen should remain pointing to the prior successful contact
+	if h2.LastSeen == nil {
+		t.Errorf("expected last_seen to persist from previous success")
+	}
+}

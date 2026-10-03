@@ -21,7 +21,8 @@ flowchart TD
         subgraph API["Go 1.22+ net/http API"]
             SnapshotEP["GET /api/v1/cameras/{id}/snapshot"]
             PTZEP["POST /api/v1/cameras/{id}/ptz"]
-            HealthzEP["GET /healthz"]
+            HealthzEP["GET /healthz & /api/v1/status"]
+            MetricsEP["GET /metrics"]
         end
 
         Manager["Camera Manager"]
@@ -167,12 +168,14 @@ cp config.example.yaml cam-proxy.yaml
 
 All endpoints are available over HTTP on port `8080` (or your configured port).
 
-### 1. Health & System Status (`GET /healthz`)
-Inspect daemon health, process uptime, and the number of active cameras.
+### 1. Health & Per-Camera Operational Status (`GET /healthz` & `GET /api/v1/status`)
+Inspect gateway health, process uptime, total camera count, and per-camera operational metrics (connection state `online`, `last_seen` timestamp, `last_snapshot_latency_ms`, and `last_error`).
 
 - **curl**:
   ```bash
   curl -s http://localhost:8080/healthz | jq
+  # Or via REST status endpoint:
+  curl -s http://localhost:8080/api/v1/status | jq
   ```
 - **wget**:
   ```bash
@@ -181,9 +184,25 @@ Inspect daemon health, process uptime, and the number of active cameras.
 - **Response**:
   ```json
   {
-    "camera_count": 3,
     "status": "ok",
-    "uptime": "15m42s"
+    "uptime": "15m42s",
+    "camera_count": 2,
+    "cameras": {
+      "front_door": {
+        "id": "front_door",
+        "online": true,
+        "last_seen": "2026-10-03T17:15:30Z",
+        "last_snapshot_latency_ms": 45,
+        "last_error": ""
+      },
+      "backyard": {
+        "id": "backyard",
+        "online": false,
+        "last_seen": null,
+        "last_snapshot_latency_ms": 0,
+        "last_error": "dial tcp 192.168.1.102:80: connect: connection refused"
+      }
+    }
   }
   ```
 
@@ -343,7 +362,26 @@ Moves the camera to a saved ONVIF viewpoint / preset token.
 
 ---
 
-### 5. Shell Scripting & Automation Examples
+### 5. Prometheus Observability Metrics (`GET /metrics`)
+Expose production metrics for Prometheus scraping (snapshot counts by source and status, latency histogram, camera online status gauge, and MQTT event counters):
+
+- **curl**:
+  ```bash
+  curl -s http://localhost:8080/metrics
+  ```
+- **wget**:
+  ```bash
+  wget -q -O- http://localhost:8080/metrics
+  ```
+- **Key Metrics Exposed**:
+  - `cam_proxy_snapshots_total{camera_id, status, source}`: Counters of snapshot requests served from `cache` vs fetched from `hardware`, with `success` or `error` status.
+  - `cam_proxy_snapshot_duration_seconds`: Histogram measuring snapshot fetch latency from camera hardware.
+  - `cam_proxy_camera_online{camera_id}`: Gauge tracking camera reachability (1 = online, 0 = offline).
+  - `cam_proxy_mqtt_events_total{camera_id, status}`: Counters of ONVIF PullPoint events processed for MQTT (`published` or `error`).
+
+---
+
+### 6. Shell Scripting & Automation Examples
 
 #### Nudge Camera: Move for 1 Second, Then Stop
 - **With curl**:

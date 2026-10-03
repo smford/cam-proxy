@@ -22,22 +22,34 @@ type PTZRequest struct {
 // RegisterRoutes attaches REST endpoints using Go 1.22+ method + path routing.
 func RegisterRoutes(mux *http.ServeMux, mgr *camera.Manager, startTime time.Time) {
 	mux.HandleFunc("GET /healthz", handleHealthz(mgr, startTime))
+	mux.HandleFunc("GET /api/v1/status", handleStatus(mgr, startTime))
 	mux.HandleFunc("GET /api/v1/cameras", handleListCameras(mgr))
 	mux.HandleFunc("GET /api/v1/cameras/{id}/snapshot", handleSnapshot(mgr))
 	mux.HandleFunc("POST /api/v1/cameras/{id}/ptz", handlePTZ(mgr))
+	if mgr != nil && mgr.Metrics() != nil {
+		mux.Handle("GET /metrics", mgr.Metrics().Handler())
+	}
 }
 
-// handleHealthz reports system health, camera count, and process uptime.
+// handleHealthz reports system health, camera count, process uptime, and per-camera operational health.
 func handleHealthz(mgr *camera.Manager, startTime time.Time) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cams := mgr.ListCameras()
+		healthMap := mgr.ListCameraHealth()
+
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status":       "ok",
 			"uptime":       time.Since(startTime).String(),
 			"camera_count": len(cams),
+			"cameras":      healthMap,
 		})
 	}
+}
+
+// handleStatus reports detailed operational health at /api/v1/status.
+func handleStatus(mgr *camera.Manager, startTime time.Time) http.HandlerFunc {
+	return handleHealthz(mgr, startTime)
 }
 
 // handleListCameras returns basic status and metadata for all configured cameras.
@@ -45,11 +57,12 @@ func handleListCameras(mgr *camera.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		cams := mgr.ListCameras()
 		type CamSummary struct {
-			ID             string `json:"id"`
-			Name           string `json:"name"`
-			Address        string `json:"address"`
-			SnapshotMethod string `json:"snapshot_method"`
-			EventsEnabled  bool   `json:"events_enabled"`
+			ID             string              `json:"id"`
+			Name           string              `json:"name"`
+			Address        string              `json:"address"`
+			SnapshotMethod string              `json:"snapshot_method"`
+			EventsEnabled  bool                `json:"events_enabled"`
+			Health         camera.CameraHealth `json:"health"`
 		}
 
 		out := make([]CamSummary, 0, len(cams))
@@ -60,6 +73,7 @@ func handleListCameras(mgr *camera.Manager) http.HandlerFunc {
 				Address:        c.Config.Address,
 				SnapshotMethod: c.Config.SnapshotMethod,
 				EventsEnabled:  c.Config.PullEvents,
+				Health:         c.Health(),
 			})
 		}
 

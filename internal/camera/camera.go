@@ -13,6 +13,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/smford/cam-proxy/internal/config"
+	"github.com/smford/cam-proxy/internal/metrics"
 	"github.com/smford/cam-proxy/internal/onvif"
 	"github.com/smford/cam-proxy/internal/rtsp"
 )
@@ -22,6 +23,15 @@ var (
 	ErrNoSnapshotSource   = errors.New("no snapshot source (ONVIF or RTSP) configured for camera")
 	ErrONVIFNotConfigured = errors.New("ONVIF is not configured for this camera")
 )
+
+// CameraHealth holds per-camera operational health metrics and status.
+type CameraHealth struct {
+	ID                    string     `json:"id"`
+	Online                bool       `json:"online"`
+	LastSeen              *time.Time `json:"last_seen,omitempty"`
+	LastSnapshotLatencyMS int64      `json:"last_snapshot_latency_ms"`
+	LastError             string     `json:"last_error,omitempty"`
+}
 
 // Camera manages connections, state, and actions for an individual camera.
 type Camera struct {
@@ -35,6 +45,14 @@ type Camera struct {
 	cachedTime  time.Time
 	cacheTTL    time.Duration
 	cacheGen    uint64
+
+	metrics *metrics.Metrics
+
+	healthMu              sync.RWMutex
+	online                bool
+	lastSeen              time.Time
+	lastSnapshotLatencyMS int64
+	lastError             string
 }
 
 // normalizeONVIFAddress ensures that the ONVIF HTTP endpoint does not accidentally connect
@@ -83,6 +101,11 @@ func NewCamera(cfg config.CameraConfig) *Camera {
 	return cam
 }
 
+// SetMetrics attaches a Prometheus metrics collector to this camera.
+func (c *Camera) SetMetrics(m *metrics.Metrics) {
+	c.metrics = m
+}
+
 // SetCacheTTL configures the snapshot in-memory cache TTL for this camera.
 // Set to 0 to disable snapshot caching.
 func (c *Camera) SetCacheTTL(ttl time.Duration) {
@@ -106,6 +129,41 @@ func (c *Camera) InvalidateCache() {
 	c.cacheGen++
 	c.cacheMu.Unlock()
 	c.sf.Forget("snapshot")
+}
+
+func (c *Camera) recordSuccess(d time.Duration) {
+	c.healthMu.Lock()
+	defer c.healthMu.Unlock()
+	c.online = true
+	c.lastSeen = time.Now()
+	c.lastSnapshotLatencyMS = d.Milliseconds()
+	c.lastError = ""
+}
+
+func (c *Camera) recordFailure(err error) {
+	c.healthMu.Lock()
+	defer c.healthMu.Unlock()
+	c.online = false
+	if err != nil {
+		c.lastError = err.Error()
+	}
+}
+
+// Health returns the operational health status of this camera.
+func (c *Camera) Health() CameraHealth {
+	c.healthMu.RLock()
+	defer c.healthMu.RUnlock()
+	h := CameraHealth{
+		ID:                    c.Config.ID,
+		Online:                c.online,
+		LastSnapshotLatencyMS: c.lastSnapshotLatencyMS,
+		LastError:             c.lastError,
+	}
+	if !c.lastSeen.IsZero() {
+		t := c.lastSeen
+		h.LastSeen = &t
+	}
+	return h
 }
 
 // authenticatedRTSPURL injects camera ONVIF username/password into the RTSP URL if credentials are not already embedded.
@@ -139,6 +197,9 @@ func (c *Camera) Snapshot(ctx context.Context) ([]byte, error) {
 		frame := make([]byte, len(c.cachedFrame))
 		copy(frame, c.cachedFrame)
 		c.cacheMu.RUnlock()
+		if c.metrics != nil {
+			c.metrics.RecordSnapshot(c.Config.ID, "success", "cache", 0)
+		}
 		return frame, nil
 	}
 	gen := c.cacheGen
@@ -150,9 +211,21 @@ func (c *Camera) Snapshot(ctx context.Context) ([]byte, error) {
 		captureCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 
+		start := time.Now()
 		data, err := c.capture(captureCtx)
+		duration := time.Since(start)
+
 		if err != nil {
+			c.recordFailure(err)
+			if c.metrics != nil {
+				c.metrics.RecordSnapshot(c.Config.ID, "error", "hardware", duration.Seconds())
+			}
 			return nil, err
+		}
+
+		c.recordSuccess(duration)
+		if c.metrics != nil {
+			c.metrics.RecordSnapshot(c.Config.ID, "success", "hardware", duration.Seconds())
 		}
 
 		c.cacheMu.Lock()
@@ -280,5 +353,14 @@ func (c *Camera) StartEventListener(ctx context.Context, handler onvif.EventHand
 	if !c.Config.PullEvents || c.onvifDevice == nil {
 		return
 	}
-	c.onvifDevice.StartEventLoop(ctx, c.Config.ID, handler)
+	c.onvifDevice.StartEventLoop(ctx, c.Config.ID, func(ev onvif.Event) {
+		c.healthMu.Lock()
+		c.online = true
+		c.lastSeen = time.Now()
+		c.healthMu.Unlock()
+		if c.metrics != nil {
+			c.metrics.SetCameraOnline(c.Config.ID, true)
+		}
+		handler(ev)
+	})
 }

@@ -36,9 +36,10 @@ cam-proxy/
 │   └── cam-proxy/        # Main CLI entrypoint (flag parsing, daemon, --scan, --tui)
 ├── internal/
 │   ├── api/             # HTTP REST endpoints (Go 1.22+ ServeMux routing)
-│   ├── camera/          # Camera state, Manager, singleflight, TTL frame caching
+│   ├── camera/          # Camera state, Manager, singleflight, TTL frame caching, health
 │   ├── config/          # YAML configuration loading, defaults, normalization, saving
 │   ├── discovery/       # WS-Discovery (UDP SOAP multicast) probe
+│   ├── metrics/         # Prometheus observability metrics collector & registry
 │   ├── mqtt/            # MQTT event publisher
 │   ├── onvif/           # SOAP envelopes, WS-Security, Digest auth, PullPoint, PTZ
 │   ├── rtsp/            # RTSP keyframe capture fallback
@@ -87,8 +88,9 @@ Agents **must** verify all changes using the repository's standard quality gates
 - Never log plain text passwords or authentication headers.
 
 ### HTTP Routing & API Conventions
-- Use Go 1.22+ standard library method-prefixed path patterns on `http.ServeMux` (e.g. `GET /api/v1/cameras/{id}/snapshot`, `POST /api/v1/cameras/{id}/ptz`).
+- Use Go 1.22+ standard library method-prefixed path patterns on `http.ServeMux` (e.g. `GET /healthz`, `GET /api/v1/status`, `GET /metrics`, `GET /api/v1/cameras/{id}/snapshot`, `POST /api/v1/cameras/{id}/ptz`).
 - Snapshot endpoints return `Content-Type: image/jpeg` and `Cache-Control: no-cache, no-store, must-revalidate`.
+- Prometheus metrics are exposed at `GET /metrics`.
 
 ---
 
