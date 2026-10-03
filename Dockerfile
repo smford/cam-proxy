@@ -16,7 +16,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
     go build -ldflags="-s -w" -o /bin/camstop ./cmd/camstop
 
 # Runtime stage
-FROM alpine:3.21
+FROM alpine:3.24
 
 # Install ca-certificates (HTTPS/ONVIF), tzdata (timezones), and ffmpeg (H.264 snapshot decoding)
 RUN apk add --no-cache ca-certificates tzdata ffmpeg
