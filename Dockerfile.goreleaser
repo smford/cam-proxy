@@ -1,4 +1,4 @@
-FROM alpine:3.21
+FROM alpine:3.24
 
 # Install ca-certificates (HTTPS/ONVIF), tzdata (timezones), and ffmpeg (H.264 snapshot decoding)
 RUN apk add --no-cache ca-certificates tzdata ffmpeg
