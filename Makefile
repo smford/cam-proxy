@@ -9,7 +9,7 @@ LDFLAGS     := -s -w \
                -X main.commit=$(COMMIT) \
                -X main.date=$(DATE)
 
-.PHONY: all help build build-linux-arm64 build-linux-amd64 clean test lint run scan sast dast release release-patch release-minor release-major release-tag release-snapshot tag-patch tag-minor tag-major docker-build docker-run
+.PHONY: all help build build-linux-arm64 build-linux-amd64 clean test lint shellcheck run scan sast dast release release-patch release-minor release-major release-tag release-snapshot tag-patch tag-minor tag-major docker-build docker-run
 
 all: build
 
@@ -57,6 +57,14 @@ lint:
 	go vet ./...
 	@echo "Verifying modules..."
 	go mod verify
+	@if command -v shellcheck >/dev/null 2>&1; then \
+		echo "Running shellcheck on shell scripts..."; \
+		shellcheck ha-addon/cam-proxy/run.sh scripts/*.sh; \
+	fi
+
+shellcheck:
+	@echo "Running shellcheck on shell scripts..."
+	shellcheck ha-addon/cam-proxy/run.sh scripts/*.sh
 
 sast:
 	uvx semgrep scan --config auto

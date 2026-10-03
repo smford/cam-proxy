@@ -362,3 +362,60 @@ func TestHomeAssistantAddonAndDocs(t *testing.T) {
 		t.Errorf("expected docs/index.html to contain nav link href='#home-assistant'")
 	}
 }
+
+func TestShellCheckWorkflow(t *testing.T) {
+	root := findRepoRoot(t)
+
+	// 1. Verify .github/workflows/shellcheck.yml exists
+	wfPath := filepath.Join(root, ".github", "workflows", "shellcheck.yml")
+	wfData, err := os.ReadFile(wfPath)
+	if err != nil {
+		t.Fatalf("failed to read .github/workflows/shellcheck.yml: %v", err)
+	}
+
+	// 2. Verify valid YAML
+	var wfConfig map[string]interface{}
+	if err := yaml.Unmarshal(wfData, &wfConfig); err != nil {
+		t.Fatalf("failed to parse .github/workflows/shellcheck.yml: %v", err)
+	}
+
+	wfContent := string(wfData)
+
+	// 3. Verify triggers on push and pull_request
+	if !strings.Contains(wfContent, "push:") || !strings.Contains(wfContent, "pull_request:") {
+		t.Errorf("expected shellcheck workflow to trigger on push and pull_request")
+	}
+
+	// 4. Verify uses ludeeus/action-shellcheck
+	if !strings.Contains(wfContent, "ludeeus/action-shellcheck@") {
+		t.Errorf("expected shellcheck workflow to use ludeeus/action-shellcheck")
+	}
+
+	// 5. Verify action is pinned to release commit SHA (00cae500b08a931fb5698e11e79bfbd38e612a38)
+	expectedSHA := "00cae500b08a931fb5698e11e79bfbd38e612a38"
+	if !strings.Contains(wfContent, "ludeeus/action-shellcheck@"+expectedSHA) {
+		t.Errorf("expected ludeeus/action-shellcheck to be pinned to release SHA %s", expectedSHA)
+	}
+
+	// 6. Verify all 'uses:' references in the workflow are pinned to 40-character commit SHAs
+	scanner := bufio.NewScanner(strings.NewReader(wfContent))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "uses:") {
+			parts := strings.Split(line, "@")
+			if len(parts) != 2 {
+				t.Errorf("malformed uses directive: %s", line)
+				continue
+			}
+			shaAndComment := strings.Fields(parts[1])
+			if len(shaAndComment) == 0 {
+				t.Errorf("missing version or SHA: %s", line)
+				continue
+			}
+			sha := shaAndComment[0]
+			if len(sha) != 40 {
+				t.Errorf("action %s is not pinned to 40-character SHA (got %q)", line, sha)
+			}
+		}
+	}
+}
