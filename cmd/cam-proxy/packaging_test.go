@@ -556,3 +556,27 @@ func TestScorecardWorkflow(t *testing.T) {
 		t.Errorf("expected README.md to contain OpenSSF Scorecard badge")
 	}
 }
+
+func TestDockerfileBaseImagePinned(t *testing.T) {
+	root := findRepoRoot(t)
+
+	dockerfiles := []string{"Dockerfile", "Dockerfile.goreleaser"}
+	for _, df := range dockerfiles {
+		path := filepath.Join(root, df)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", df, err)
+		}
+
+		scanner := bufio.NewScanner(strings.NewReader(string(data)))
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if strings.HasPrefix(line, "FROM ") {
+				// Each FROM base image must be pinned to a sha256 hash
+				if !strings.Contains(line, "@sha256:") {
+					t.Errorf("%s: unpinned base image instruction %q (must use @sha256:...)", df, line)
+				}
+			}
+		}
+	}
+}
