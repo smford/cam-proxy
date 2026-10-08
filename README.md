@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/smford/cam-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/smford/cam-proxy/actions/workflows/ci.yml)
 [![Release](https://github.com/smford/cam-proxy/actions/workflows/release.yml/badge.svg)](https://github.com/smford/cam-proxy/releases)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/smford/cam-proxy/badge)](https://scorecard.dev/viewer/?uri=github.com/smford/cam-proxy)
 [![Docs](https://img.shields.io/badge/docs-website-blue.svg)](https://stephenford.org/cam-proxy/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 

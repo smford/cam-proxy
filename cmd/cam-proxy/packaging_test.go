@@ -473,3 +473,86 @@ func TestPreCommitConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestScorecardWorkflow(t *testing.T) {
+	root := findRepoRoot(t)
+
+	// 1. Verify .github/workflows/scorecard.yml exists
+	wfPath := filepath.Join(root, ".github", "workflows", "scorecard.yml")
+	wfData, err := os.ReadFile(wfPath)
+	if err != nil {
+		t.Fatalf("failed to read .github/workflows/scorecard.yml: %v", err)
+	}
+
+	// 2. Verify valid YAML
+	var wfConfig map[string]interface{}
+	if err := yaml.Unmarshal(wfData, &wfConfig); err != nil {
+		t.Fatalf("failed to parse .github/workflows/scorecard.yml: %v", err)
+	}
+
+	wfContent := string(wfData)
+
+	// 3. Verify triggers
+	if !strings.Contains(wfContent, "schedule:") {
+		t.Errorf("expected scorecard workflow to include schedule trigger")
+	}
+	if !strings.Contains(wfContent, "push:") {
+		t.Errorf("expected scorecard workflow to include push trigger")
+	}
+	if !strings.Contains(wfContent, "branch_protection_rule:") {
+		t.Errorf("expected scorecard workflow to include branch_protection_rule trigger")
+	}
+	if !strings.Contains(wfContent, "workflow_dispatch:") {
+		t.Errorf("expected scorecard workflow to include workflow_dispatch trigger")
+	}
+
+	// 4. Verify uses ossf/scorecard-action
+	if !strings.Contains(wfContent, "ossf/scorecard-action@") {
+		t.Errorf("expected scorecard workflow to use ossf/scorecard-action")
+	}
+
+	// 5. Verify publish_results and results_format
+	if !strings.Contains(wfContent, "publish_results: true") {
+		t.Errorf("expected publish_results: true in scorecard workflow")
+	}
+	if !strings.Contains(wfContent, "results_format: sarif") {
+		t.Errorf("expected results_format: sarif in scorecard workflow")
+	}
+
+	// 6. Verify CodeQL SARIF upload step
+	if !strings.Contains(wfContent, "github/codeql-action/upload-sarif@") {
+		t.Errorf("expected scorecard workflow to upload SARIF to code-scanning")
+	}
+
+	// 7. Verify all 'uses:' references in the workflow are pinned to 40-character commit SHAs
+	scanner := bufio.NewScanner(strings.NewReader(wfContent))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "uses:") {
+			parts := strings.Split(line, "@")
+			if len(parts) != 2 {
+				t.Errorf("malformed uses directive: %s", line)
+				continue
+			}
+			shaAndComment := strings.Fields(parts[1])
+			if len(shaAndComment) == 0 {
+				t.Errorf("missing version or SHA: %s", line)
+				continue
+			}
+			sha := shaAndComment[0]
+			if len(sha) != 40 {
+				t.Errorf("action %s is not pinned to 40-character SHA (got %q)", line, sha)
+			}
+		}
+	}
+
+	// 8. Verify README includes OpenSSF Scorecard badge
+	readmePath := filepath.Join(root, "README.md")
+	readmeData, err := os.ReadFile(readmePath)
+	if err != nil {
+		t.Fatalf("failed to read README.md: %v", err)
+	}
+	if !strings.Contains(string(readmeData), "api.scorecard.dev/projects/github.com/smford/cam-proxy/badge") {
+		t.Errorf("expected README.md to contain OpenSSF Scorecard badge")
+	}
+}
