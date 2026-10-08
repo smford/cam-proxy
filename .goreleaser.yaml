@@ -55,6 +55,29 @@ dockers_v2:
 checksum:
   name_template: 'checksums.txt'
 
+signs:
+  - id: cosign
+    cmd: cosign
+    artifacts: checksum
+    certificate: '${artifact}.pem'
+    args:
+      - "sign-blob"
+      - "--yes"
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+    output: true
+
+docker_signs:
+  - id: cosign
+    cmd: cosign
+    artifacts: all
+    args:
+      - "sign"
+      - "--yes"
+      - "${artifact}"
+    output: true
+
 changelog:
   sort: asc
   filters:

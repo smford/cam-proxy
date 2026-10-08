@@ -162,6 +162,23 @@ func TestPackagingAndDistribution(t *testing.T) {
 	if !strings.Contains(wfContent, "Formula/cam-proxy.rb") {
 		t.Errorf("expected release workflow to publish Formula/cam-proxy.rb")
 	}
+
+	// Verify release workflow has id-token: write and installs cosign pinned to 40-char SHA
+	if !strings.Contains(wfContent, "id-token: write") {
+		t.Errorf("expected release workflow to have id-token: write permission")
+	}
+	if !strings.Contains(wfContent, "sigstore/cosign-installer@") {
+		t.Errorf("expected release workflow to install cosign")
+	}
+
+	// Verify .goreleaser.yaml has signs and docker_signs configured
+	goreleaserContent := string(data)
+	if !strings.Contains(goreleaserContent, "signs:") || !strings.Contains(goreleaserContent, "cmd: cosign") {
+		t.Errorf("expected .goreleaser.yaml to configure checksum signing with cosign")
+	}
+	if !strings.Contains(goreleaserContent, "docker_signs:") {
+		t.Errorf("expected .goreleaser.yaml to configure docker_signs with cosign")
+	}
 }
 
 func TestGitHubPagesAndDocumentation(t *testing.T) {
